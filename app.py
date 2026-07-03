@@ -10,20 +10,16 @@ st.title("📊 Анализ неудовлетворённого спроса")
 uploaded_file = st.file_uploader("Загрузите Excel-файл с данными", type=["xlsx"])
 
 def find_header_row(df_raw, keywords, max_rows=5):
-    """
-    Ищет строку, в которой встречаются ключевые слова (например, 'Дата', 'Продано').
-    Возвращает номер строки (0-индексация) или None.
-    """
+    """Ищет строку с заголовками среди первых max_rows строк."""
     for i in range(min(max_rows, len(df_raw))):
         row = df_raw.iloc[i].astype(str).str.lower()
-        # Проверяем, содержит ли хотя бы одна ячейка ключевое слово
         for kw in keywords:
             if row.str.contains(kw).any():
                 return i
     return None
 
 def find_column(df, keywords):
-    """Ищет колонку, имя которой содержит одно из ключевых слов (регистронезависимо)."""
+    """Ищет колонку по ключевым словам в названии."""
     for col in df.columns:
         col_lower = col.lower().strip()
         for kw in keywords:
@@ -33,7 +29,7 @@ def find_column(df, keywords):
 
 if uploaded_file is not None:
     try:
-        # Сначала читаем все строки как текст (без заголовка)
+        # Читаем все строки без заголовка
         df_raw_all = pd.read_excel(uploaded_file, header=None, dtype=str)
     except Exception as e:
         st.error(f"Ошибка при чтении файла: {e}")
@@ -46,64 +42,81 @@ if uploaded_file is not None:
     # Ищем строку с заголовками
     header_row = find_header_row(df_raw_all, ["дата", "продано", "остаток", "цена"])
     if header_row is None:
-        st.error("Не удалось автоматически найти строку с заголовками. "
-                 "Убедитесь, что в файле есть строка с названиями колонок (Дата, Продано штук, Остаток на конец периода, шт, Стоимость 1 шт в рублях).")
+        st.error("Не удалось найти строку с заголовками. Убедитесь, что есть колонки: Дата, Продано штук, Остаток на конец периода, шт, Стоимость 1 шт в рублях.")
         st.stop()
 
-    # Перечитываем файл, используя найденную строку как заголовок
+    # Перечитываем с найденным заголовком
     try:
         df_raw = pd.read_excel(uploaded_file, header=header_row)
     except Exception as e:
-        st.error(f"Ошибка при чтении с заголовком из строки {header_row+1}: {e}")
+        st.error(f"Ошибка при чтении с заголовком: {e}")
         st.stop()
 
-    # ---- Автоматическое определение колонок ----
+    # Определяем колонки
     date_col = find_column(df_raw, ["дата", "date", "день", "период", "dt"])
     if date_col is None:
-        st.error("Не найдена колонка с датой. Убедитесь, что в файле есть столбец с названием, содержащим 'Дата' или 'Date'.")
+        st.error("Не найдена колонка с датой.")
         st.stop()
     df_raw.rename(columns={date_col: "Дата"}, inplace=True)
 
     sales_col = find_column(df_raw, ["продано", "продажи", "sales", "прод"])
     if sales_col is None:
-        st.error("Не найдена колонка с количеством продаж. Ищите 'Продано' или 'Sales'.")
+        st.error("Не найдена колонка с продажами.")
         st.stop()
     df_raw.rename(columns={sales_col: "Продано штук"}, inplace=True)
 
     stock_col = find_column(df_raw, ["остаток", "stock", "наличие", "конец"])
     if stock_col is None:
-        st.error("Не найдена колонка с остатком на конец периода.")
+        st.error("Не найдена колонка с остатком.")
         st.stop()
     df_raw.rename(columns={stock_col: "Остаток на конец периода, шт"}, inplace=True)
 
     price_col = find_column(df_raw, ["цена", "стоимость", "price", "cost"])
     if price_col is None:
-        st.error("Не найдена колонка с ценой за единицу.")
+        st.error("Не найдена колонка с ценой.")
         st.stop()
     df_raw.rename(columns={price_col: "Стоимость 1 шт в рублях"}, inplace=True)
 
-    # Берём только нужные колонки
+    # Берём нужные колонки
     df = df_raw[["Дата", "Продано штук", "Остаток на конец периода, шт", "Стоимость 1 шт в рублях"]].copy()
 
-    # Парсим дату
-    try:
-        df["Дата"] = pd.to_datetime(df["Дата"], dayfirst=True)
-    except:
-        try:
-            df["Дата"] = pd.to_datetime(df["Дата"])
-        except Exception as e:
-            st.error(f"Не удалось распознать формат даты: {e}. Убедитесь, что даты записаны корректно.")
-            st.stop()
+    # ---- Преобразование дат ----
+    # Пробуем несколько форматов
+    def parse_dates_robust(series):
+        for fmt in ("%d.%m.%Y", "%d/%m/%Y", "%Y-%m-%d", "%m/%d/%Y"):
+            try:
+                return pd.to_datetime(series, format=fmt, errors="coerce")
+            except:
+                continue
+        # Если ни один не подошёл, используем стандартный парсер с dayfirst=True
+        return pd.to_datetime(series, dayfirst=True, errors="coerce")
+
+    df["Дата"] = parse_dates_robust(df["Дата"])
+
+    # Удаляем строки с нераспознанной датой
+    invalid_dates = df["Дата"].isna()
+    if invalid_dates.any():
+        st.warning(f"Найдено {invalid_dates.sum()} строк с нераспознанной датой. Они будут удалены.")
+        df = df[~invalid_dates].copy()
+
+    if df.empty:
+        st.error("После удаления нераспознанных дат таблица пуста. Проверьте формат дат.")
+        st.stop()
 
     # Приводим числа
     df["Продано штук"] = pd.to_numeric(df["Продано штук"], errors="coerce").fillna(0).astype(int)
     df["Остаток на конец периода, шт"] = pd.to_numeric(df["Остаток на конец периода, шт"], errors="coerce").astype(int)
     df["Стоимость 1 шт в рублях"] = pd.to_numeric(df["Стоимость 1 шт в рублях"], errors="coerce").astype(float)
 
-    # Сортируем
+    # Сортируем по дате
     df = df.sort_values("Дата").reset_index(drop=True)
 
-    # ---- Дальнейшие расчёты (как раньше) ----
+    # Проверяем последнюю дату
+    first_date = df["Дата"].min().strftime("%d.%m.%Y")
+    last_date = df["Дата"].max().strftime("%d.%m.%Y")
+    st.info(f"📅 Период данных: с {first_date} по {last_date} (всего {len(df)} дней)")
+
+    # ---- Расчёт остатка на начало и поступлений ----
     df["Остаток_нач"] = 0
     df["Поступления"] = 0
     df.loc[0, "Остаток_нач"] = df.loc[0, "Остаток на конец периода, шт"]
@@ -117,7 +130,7 @@ if uploaded_file is not None:
                        f"получилось отрицательное поступление, установлено 0.")
         df.loc[i, "Поступления"] = post
 
-    # Оценка спроса
+    # ---- Оценка спроса ----
     days_without_deficit = df[df["Остаток на конец периода, шт"] > 0]
     if days_without_deficit.empty:
         st.error("Нет ни одного дня без дефицита, невозможно оценить спрос.")
@@ -147,6 +160,7 @@ if uploaded_file is not None:
     )
     df["Упущенная_выгода"] = df["Дефицит_шт"] * df["Стоимость 1 шт в рублях"]
 
+    # ---- Итоговые метрики ----
     total_loss = df["Упущенная_выгода"].sum()
     total_deficit = df["Дефицит_шт"].sum()
     days_with_deficit = (df["Дефицит_шт"] > 0).sum()
@@ -159,6 +173,7 @@ if uploaded_file is not None:
     col3.metric("Дней с дефицитом", f"{days_with_deficit}")
     col4.metric("Средний дефицит в день (шт)", f"{avg_deficit_per_day:.1f}")
 
+    # ---- Графики ----
     st.subheader("📉 Графики")
     fig1 = px.line(
         df,
@@ -194,6 +209,7 @@ if uploaded_file is not None:
     )
     st.plotly_chart(fig3, use_container_width=True)
 
+    # ---- Таблица ----
     st.subheader("📋 Детальная таблица")
     display_cols = [
         "Дата", "Остаток_нач", "Поступления", "Продано штук",
@@ -203,6 +219,7 @@ if uploaded_file is not None:
     df_display["Дата"] = df_display["Дата"].dt.strftime("%d.%m.%Y")
     st.dataframe(df_display, use_container_width=True)
 
+    # ---- Скачивание ----
     def to_excel(df):
         output = BytesIO()
         with pd.ExcelWriter(output, engine="openpyxl") as writer:
