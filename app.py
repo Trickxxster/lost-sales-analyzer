@@ -9,6 +9,19 @@ st.title("📊 Анализ неудовлетворённого спроса")
 
 uploaded_file = st.file_uploader("Загрузите Excel-файл с данными", type=["xlsx"])
 
+def find_header_row(df_raw, keywords, max_rows=5):
+    """
+    Ищет строку, в которой встречаются ключевые слова (например, 'Дата', 'Продано').
+    Возвращает номер строки (0-индексация) или None.
+    """
+    for i in range(min(max_rows, len(df_raw))):
+        row = df_raw.iloc[i].astype(str).str.lower()
+        # Проверяем, содержит ли хотя бы одна ячейка ключевое слово
+        for kw in keywords:
+            if row.str.contains(kw).any():
+                return i
+    return None
+
 def find_column(df, keywords):
     """Ищет колонку, имя которой содержит одно из ключевых слов (регистронезависимо)."""
     for col in df.columns:
@@ -20,50 +33,59 @@ def find_column(df, keywords):
 
 if uploaded_file is not None:
     try:
-        # Читаем все колонки как есть (без парсинга дат)
-        df_raw = pd.read_excel(uploaded_file, header=0)
+        # Сначала читаем все строки как текст (без заголовка)
+        df_raw_all = pd.read_excel(uploaded_file, header=None, dtype=str)
     except Exception as e:
         st.error(f"Ошибка при чтении файла: {e}")
         st.stop()
 
-    if df_raw.empty:
-        st.error("Таблица пуста")
+    if df_raw_all.empty:
+        st.error("Файл пуст")
+        st.stop()
+
+    # Ищем строку с заголовками
+    header_row = find_header_row(df_raw_all, ["дата", "продано", "остаток", "цена"])
+    if header_row is None:
+        st.error("Не удалось автоматически найти строку с заголовками. "
+                 "Убедитесь, что в файле есть строка с названиями колонок (Дата, Продано штук, Остаток на конец периода, шт, Стоимость 1 шт в рублях).")
+        st.stop()
+
+    # Перечитываем файл, используя найденную строку как заголовок
+    try:
+        df_raw = pd.read_excel(uploaded_file, header=header_row)
+    except Exception as e:
+        st.error(f"Ошибка при чтении с заголовком из строки {header_row+1}: {e}")
         st.stop()
 
     # ---- Автоматическое определение колонок ----
-    # 1. Колонка с датой
     date_col = find_column(df_raw, ["дата", "date", "день", "период", "dt"])
     if date_col is None:
         st.error("Не найдена колонка с датой. Убедитесь, что в файле есть столбец с названием, содержащим 'Дата' или 'Date'.")
         st.stop()
-    # Переименовываем в "Дата"
     df_raw.rename(columns={date_col: "Дата"}, inplace=True)
 
-    # 2. Колонка с продажами
     sales_col = find_column(df_raw, ["продано", "продажи", "sales", "прод"])
     if sales_col is None:
         st.error("Не найдена колонка с количеством продаж. Ищите 'Продано' или 'Sales'.")
         st.stop()
     df_raw.rename(columns={sales_col: "Продано штук"}, inplace=True)
 
-    # 3. Колонка с остатком на конец
     stock_col = find_column(df_raw, ["остаток", "stock", "наличие", "конец"])
     if stock_col is None:
         st.error("Не найдена колонка с остатком на конец периода.")
         st.stop()
     df_raw.rename(columns={stock_col: "Остаток на конец периода, шт"}, inplace=True)
 
-    # 4. Колонка с ценой (может быть несколько, ищем)
     price_col = find_column(df_raw, ["цена", "стоимость", "price", "cost"])
     if price_col is None:
         st.error("Не найдена колонка с ценой за единицу.")
         st.stop()
     df_raw.rename(columns={price_col: "Стоимость 1 шт в рублях"}, inplace=True)
 
-    # Теперь у нас есть стандартные имена колонок
+    # Берём только нужные колонки
     df = df_raw[["Дата", "Продано штук", "Остаток на конец периода, шт", "Стоимость 1 шт в рублях"]].copy()
 
-    # Парсим дату (формат может быть DD.MM.YYYY или MM/DD/YYYY)
+    # Парсим дату
     try:
         df["Дата"] = pd.to_datetime(df["Дата"], dayfirst=True)
     except:
@@ -78,10 +100,10 @@ if uploaded_file is not None:
     df["Остаток на конец периода, шт"] = pd.to_numeric(df["Остаток на конец периода, шт"], errors="coerce").astype(int)
     df["Стоимость 1 шт в рублях"] = pd.to_numeric(df["Стоимость 1 шт в рублях"], errors="coerce").astype(float)
 
-    # Сортируем по дате
+    # Сортируем
     df = df.sort_values("Дата").reset_index(drop=True)
 
-    # ---- Дальнейшие расчёты (как в предыдущей версии) ----
+    # ---- Дальнейшие расчёты (как раньше) ----
     df["Остаток_нач"] = 0
     df["Поступления"] = 0
     df.loc[0, "Остаток_нач"] = df.loc[0, "Остаток на конец периода, шт"]
