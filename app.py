@@ -1,247 +1,280 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import numpy as np
+import plotly.graph_objects as go
 from io import BytesIO
+import numpy as np
 
 st.set_page_config(page_title="Анализ неудовлетворённого спроса", layout="wide")
 st.title("📊 Анализ неудовлетворённого спроса")
 
-uploaded_file = st.file_uploader("Загрузите Excel-файл с данными", type=["xlsx"])
+# --------------------- Парсинг файла ---------------------
+def parse_excel(file):
+    """
+    Парсит Excel-файл со структурой:
+    - Каждый день – отдельный блок, начинающийся со строки, где в первом столбце 'Номенклатура'.
+    - В блоке: первая строка – города, вторая – подзаголовки (Класс шт, Количество, ...),
+      далее строки товаров.
+    Возвращает DataFrame с колонками:
+    day, city, product, sales, stock
+    """
+    # Читаем все строки без заголовков
+    df_raw = pd.read_excel(file, header=None, dtype=str)
+    # Заполняем NaN пустой строкой
+    df_raw = df_raw.fillna('')
 
-def find_header_row(df_raw, keywords, max_rows=5):
-    """Ищет строку с заголовками среди первых max_rows строк."""
-    for i in range(min(max_rows, len(df_raw))):
-        row = df_raw.iloc[i].astype(str).str.lower()
-        for kw in keywords:
-            if row.str.contains(kw).any():
-                return i
-    return None
+    # Находим индексы строк, где в первой колонке "Номенклатура"
+    start_indices = df_raw[df_raw[0].str.contains('Номенклатура', na=False)].index.tolist()
+    if not start_indices:
+        st.error("Не найдены блоки с 'Номенклатура'. Проверьте структуру файла.")
+        return None
 
-def find_column(df, keywords):
-    """Ищет колонку по ключевым словам в названии."""
-    for col in df.columns:
-        col_lower = col.lower().strip()
-        for kw in keywords:
-            if kw in col_lower:
-                return col
-    return None
+    # Определяем конец последнего блока
+    end_indices = start_indices[1:] + [len(df_raw)]
 
-if uploaded_file is not None:
-    try:
-        # Читаем все строки без заголовка
-        df_raw_all = pd.read_excel(uploaded_file, header=None, dtype=str)
-    except Exception as e:
-        st.error(f"Ошибка при чтении файла: {e}")
-        st.stop()
+    records = []
 
-    if df_raw_all.empty:
-        st.error("Файл пуст")
-        st.stop()
+    for day_idx, (start, end) in enumerate(zip(start_indices, end_indices), start=1):
+        # Строка с городами (первая строка блока)
+        header_row = df_raw.iloc[start]
+        # Строка с подзаголовками (вторая строка блока)
+        subheader_row = df_raw.iloc[start + 1] if start + 1 < len(df_raw) else None
 
-    # Ищем строку с заголовками
-    header_row = find_header_row(df_raw_all, ["дата", "продано", "остаток", "цена"])
-    if header_row is None:
-        st.error("Не удалось найти строку с заголовками. Убедитесь, что есть колонки: Дата, Продано штук, Остаток на конец периода, шт, Стоимость 1 шт в рублях.")
-        st.stop()
+        # Ищем города: ячейки, содержащие "LikeStore" или "Like"
+        cities = {}
+        for col_idx, val in header_row.items():
+            val_str = str(val).strip()
+            if 'LikeStore' in val_str or 'Like' in val_str:
+                # Запоминаем начальную колонку для этого города
+                cities[val_str] = col_idx
 
-    # Перечитываем с найденным заголовком
-    try:
-        df_raw = pd.read_excel(uploaded_file, header=header_row)
-    except Exception as e:
-        st.error(f"Ошибка при чтении с заголовком: {e}")
-        st.stop()
+        if not cities:
+            st.warning(f"День {day_idx}: города не найдены в заголовке. Пропускаем блок.")
+            continue
 
-    # Определяем колонки
-    date_col = find_column(df_raw, ["дата", "date", "день", "период", "dt"])
-    if date_col is None:
-        st.error("Не найдена колонка с датой.")
-        st.stop()
-    df_raw.rename(columns={date_col: "Дата"}, inplace=True)
+        # Данные товаров: строки начиная с start+2 до end-1 (исключая строку "Итого"?)
+        # Строка "Итого" может быть последней в блоке, её тоже можно пропустить
+        data_rows = df_raw.iloc[start+2:end]
+        # Удаляем строки, где первый столбец пустой или содержит "Итого"
+        data_rows = data_rows[~data_rows[0].str.contains('Итого', na=False)]
 
-    sales_col = find_column(df_raw, ["продано", "продажи", "sales", "прод"])
-    if sales_col is None:
-        st.error("Не найдена колонка с продажами.")
-        st.stop()
-    df_raw.rename(columns={sales_col: "Продано штук"}, inplace=True)
+        for _, row in data_rows.iterrows():
+            product_name = str(row[0]).strip()
+            product_char = str(row[1]).strip()
+            product = f"{product_name} | {product_char}" if product_char else product_name
 
-    stock_col = find_column(df_raw, ["остаток", "stock", "наличие", "конец"])
-    if stock_col is None:
-        st.error("Не найдена колонка с остатком.")
-        st.stop()
-    df_raw.rename(columns={stock_col: "Остаток на конец периода, шт"}, inplace=True)
+            for city, col_start in cities.items():
+                # Проверяем, что есть достаточно колонок
+                if col_start + 9 >= len(row):
+                    continue
+                # Извлекаем значения по смещениям
+                sales_val = row[col_start + 1]  # "Количество"
+                stock_val = row[col_start + 5]  # "Итоговый остаток, шт"
 
-    price_col = find_column(df_raw, ["цена", "стоимость", "price", "cost"])
-    if price_col is None:
-        st.error("Не найдена колонка с ценой.")
-        st.stop()
-    df_raw.rename(columns={price_col: "Стоимость 1 шт в рублях"}, inplace=True)
+                # Преобразуем в числа
+                try:
+                    sales = float(sales_val) if sales_val not in ['', None] else 0.0
+                except:
+                    sales = 0.0
+                try:
+                    stock = float(stock_val) if stock_val not in ['', None] else 0.0
+                except:
+                    stock = 0.0
 
-    # Берём нужные колонки
-    df = df_raw[["Дата", "Продано штук", "Остаток на конец периода, шт", "Стоимость 1 шт в рублях"]].copy()
+                # Сохраняем запись
+                records.append({
+                    'day': day_idx,
+                    'city': city,
+                    'product': product,
+                    'sales': sales,
+                    'stock': stock
+                })
 
-    # ---- Преобразование дат ----
-    # Пробуем несколько форматов
-    def parse_dates_robust(series):
-        for fmt in ("%d.%m.%Y", "%d/%m/%Y", "%Y-%m-%d", "%m/%d/%Y"):
-            try:
-                return pd.to_datetime(series, format=fmt, errors="coerce")
-            except:
-                continue
-        # Если ни один не подошёл, используем стандартный парсер с dayfirst=True
-        return pd.to_datetime(series, dayfirst=True, errors="coerce")
+    if not records:
+        st.error("Не удалось извлечь данные. Проверьте структуру файла.")
+        return None
 
-    df["Дата"] = parse_dates_robust(df["Дата"])
+    df = pd.DataFrame(records)
+    # Приводим типы
+    df['sales'] = df['sales'].astype(float)
+    df['stock'] = df['stock'].astype(float)
+    return df
 
-    # Удаляем строки с нераспознанной датой
-    invalid_dates = df["Дата"].isna()
-    if invalid_dates.any():
-        st.warning(f"Найдено {invalid_dates.sum()} строк с нераспознанной датой. Они будут удалены.")
-        df = df[~invalid_dates].copy()
+# --------------------- Расчёт дефицита ---------------------
+def calculate_deficit(df):
+    """
+    Для каждого города и товара:
+    - Оцениваем средний дневной спрос по дням, где stock > 0 (товар был в наличии).
+    - Для дней, где stock == 0, считаем дефицит = спрос - 0 (т.е. спрос).
+    Возвращает DataFrame с дефицитом по дням и итоговые метрики.
+    """
+    # Группируем по городу и товару
+    results = []
+    for (city, product), group in df.groupby(['city', 'product']):
+        # Дни с наличием (stock > 0)
+        available = group[group['stock'] > 0]
+        if len(available) == 0:
+            # Если никогда не было товара, спрос оценить нельзя – пропускаем
+            continue
 
-    if df.empty:
-        st.error("После удаления нераспознанных дат таблица пуста. Проверьте формат дат.")
-        st.stop()
+        # Средний спрос = средние продажи в дни наличия
+        avg_demand = available['sales'].mean()
+        if avg_demand <= 0:
+            continue
 
-    # Приводим числа
-    df["Продано штук"] = pd.to_numeric(df["Продано штук"], errors="coerce").fillna(0).astype(int)
-    df["Остаток на конец периода, шт"] = pd.to_numeric(df["Остаток на конец периода, шт"], errors="coerce").astype(int)
-    df["Стоимость 1 шт в рублях"] = pd.to_numeric(df["Стоимость 1 шт в рублях"], errors="coerce").astype(float)
+        # Для каждого дня в группе
+        for _, row in group.iterrows():
+            day = row['day']
+            stock = row['stock']
+            sales = row['sales']
+            if stock == 0:
+                deficit = avg_demand  # весь спрос не удовлетворён
+            else:
+                deficit = 0.0
+            results.append({
+                'city': city,
+                'product': product,
+                'day': day,
+                'sales': sales,
+                'stock': stock,
+                'avg_demand': avg_demand,
+                'deficit': deficit
+            })
 
-    # Сортируем по дате
-    df = df.sort_values("Дата").reset_index(drop=True)
+    df_result = pd.DataFrame(results)
+    if df_result.empty:
+        return None, None
 
-    # Проверяем последнюю дату
-    first_date = df["Дата"].min().strftime("%d.%m.%Y")
-    last_date = df["Дата"].max().strftime("%d.%m.%Y")
-    st.info(f"📅 Период данных: с {first_date} по {last_date} (всего {len(df)} дней)")
+    # Итоговые метрики
+    total_deficit_by_product = df_result.groupby('product')['deficit'].sum().reset_index()
+    total_deficit_by_city = df_result.groupby('city')['deficit'].sum().reset_index()
+    total_deficit = df_result['deficit'].sum()
 
-    # ---- Расчёт остатка на начало и поступлений ----
-    df["Остаток_нач"] = 0
-    df["Поступления"] = 0
-    df.loc[0, "Остаток_нач"] = df.loc[0, "Остаток на конец периода, шт"]
-    for i in range(1, len(df)):
-        prev_end = df.loc[i-1, "Остаток на конец периода, шт"]
-        df.loc[i, "Остаток_нач"] = prev_end
-        post = df.loc[i, "Остаток на конец периода, шт"] - df.loc[i, "Остаток_нач"] + df.loc[i, "Продано штук"]
-        if post < 0:
-            post = 0
-            st.warning(f"В строке {i+1} (дата {df.loc[i, 'Дата'].strftime('%d.%m.%Y')}) "
-                       f"получилось отрицательное поступление, установлено 0.")
-        df.loc[i, "Поступления"] = post
+    return df_result, {
+        'total_deficit': total_deficit,
+        'by_product': total_deficit_by_product,
+        'by_city': total_deficit_by_city
+    }
 
-    # ---- Оценка спроса ----
-    days_without_deficit = df[df["Остаток на конец периода, шт"] > 0]
-    if days_without_deficit.empty:
-        st.error("Нет ни одного дня без дефицита, невозможно оценить спрос.")
-        st.stop()
+# --------------------- Интерфейс Streamlit ---------------------
+uploaded_file = st.file_uploader("📂 Загрузите Excel-файл", type=["xlsx"])
 
-    st.sidebar.header("Параметры расчёта")
-    method = st.sidebar.selectbox(
-        "Метод оценки спроса",
-        ["Среднее арифметическое", "Медиана", "Скользящее среднее (по всем дням)"]
-    )
+if uploaded_file:
+    with st.spinner("Парсинг файла..."):
+        df_data = parse_excel(uploaded_file)
 
-    if method == "Скользящее среднее (по всем дням)":
-        window = st.sidebar.slider("Окно скользящего среднего (дней)", min_value=2, max_value=30, value=7)
-        df["Спрос_оценка"] = df["Продано штук"].rolling(window=window, min_periods=1).mean()
-        avg_no_deficit = days_without_deficit["Продано штук"].mean()
-        df["Спрос_оценка"] = df["Спрос_оценка"].fillna(avg_no_deficit)
-    else:
-        if method == "Среднее арифметическое":
-            demand_est = days_without_deficit["Продано штук"].mean()
+    if df_data is not None:
+        st.success(f"✅ Данные загружены. {len(df_data)} записей, дни: {df_data['day'].min()} – {df_data['day'].max()}")
+
+        # Показываем сырые данные (опционально)
+        with st.expander("📋 Предпросмотр данных"):
+            st.dataframe(df_data.head(100))
+
+        # Расчёт дефицита
+        with st.spinner("Расчёт дефицита..."):
+            df_deficit, metrics = calculate_deficit(df_data)
+
+        if df_deficit is None:
+            st.error("Не удалось рассчитать дефицит: нет дней с наличием товара.")
         else:
-            demand_est = days_without_deficit["Продано штук"].median()
-        df["Спрос_оценка"] = demand_est
+            st.success("✅ Расчёт выполнен.")
 
-    df["Дефицит_шт"] = df.apply(
-        lambda r: max(0, r["Спрос_оценка"] - r["Остаток_нач"]),
-        axis=1
-    )
-    df["Упущенная_выгода"] = df["Дефицит_шт"] * df["Стоимость 1 шт в рублях"]
+            # ---- Фильтры ----
+            st.sidebar.header("🔍 Фильтры")
+            cities = sorted(df_deficit['city'].unique())
+            products = sorted(df_deficit['product'].unique())
 
-    # ---- Итоговые метрики ----
-    total_loss = df["Упущенная_выгода"].sum()
-    total_deficit = df["Дефицит_шт"].sum()
-    days_with_deficit = (df["Дефицит_шт"] > 0).sum()
-    avg_deficit_per_day = total_deficit / len(df) if len(df) > 0 else 0
+            selected_city = st.sidebar.selectbox("Город", ["Все"] + cities)
+            selected_product = st.sidebar.selectbox("Товар", ["Все"] + products)
 
-    st.subheader("📈 Итоговые показатели за период")
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Общая упущенная выгода", f"{total_loss:,.2f} руб.")
-    col2.metric("Общий дефицит (шт)", f"{total_deficit:,.0f}")
-    col3.metric("Дней с дефицитом", f"{days_with_deficit}")
-    col4.metric("Средний дефицит в день (шт)", f"{avg_deficit_per_day:.1f}")
+            df_filtered = df_deficit.copy()
+            if selected_city != "Все":
+                df_filtered = df_filtered[df_filtered['city'] == selected_city]
+            if selected_product != "Все":
+                df_filtered = df_filtered[df_filtered['product'] == selected_product]
 
-    # ---- Графики ----
-    st.subheader("📉 Графики")
-    fig1 = px.line(
-        df,
-        x="Дата",
-        y=["Остаток_нач", "Продано штук", "Спрос_оценка"],
-        title="Остаток на начало дня, фактические продажи и оценка спроса",
-        labels={"value": "Количество (шт)", "variable": "Показатель"},
-        color_discrete_map={
-            "Остаток_нач": "blue",
-            "Продано штук": "green",
-            "Спрос_оценка": "red"
-        }
-    )
-    st.plotly_chart(fig1, use_container_width=True)
+            # ---- Метрики ----
+            total_def = df_filtered['deficit'].sum()
+            avg_def_per_day = df_filtered.groupby('day')['deficit'].sum().mean()
+            days_with_deficit = df_filtered[df_filtered['deficit'] > 0]['day'].nunique()
+            total_days = df_filtered['day'].nunique()
 
-    fig2 = px.bar(
-        df,
-        x="Дата",
-        y="Дефицит_шт",
-        title="Дефицит по дням (шт)",
-        labels={"Дефицит_шт": "Дефицит (шт)"},
-        color_discrete_sequence=["orange"]
-    )
-    st.plotly_chart(fig2, use_container_width=True)
+            col1, col2, col3, col4 = st.columns(4)
+            col1.metric("Общий дефицит (шт)", f"{total_def:,.0f}")
+            col2.metric("Средний дефицит в день", f"{avg_def_per_day:.1f}")
+            col3.metric("Дней с дефицитом", f"{days_with_deficit} из {total_days}")
+            col4.metric("Количество товаров", f"{df_filtered['product'].nunique()}")
 
-    fig3 = px.bar(
-        df,
-        x="Дата",
-        y="Упущенная_выгода",
-        title="Упущенная выгода по дням (руб.)",
-        labels={"Упущенная_выгода": "Упущенная выгода (руб.)"},
-        color_discrete_sequence=["red"]
-    )
-    st.plotly_chart(fig3, use_container_width=True)
+            # ---- Графики ----
+            st.subheader("📈 Динамика дефицита по дням")
 
-    # ---- Таблица ----
-    st.subheader("📋 Детальная таблица")
-    display_cols = [
-        "Дата", "Остаток_нач", "Поступления", "Продано штук",
-        "Остаток на конец периода, шт", "Спрос_оценка", "Дефицит_шт", "Упущенная_выгода"
-    ]
-    df_display = df[display_cols].copy()
-    df_display["Дата"] = df_display["Дата"].dt.strftime("%d.%m.%Y")
-    st.dataframe(df_display, use_container_width=True)
+            # Суммарный дефицит по дням
+            daily_deficit = df_filtered.groupby('day')['deficit'].sum().reset_index()
+            fig1 = px.bar(daily_deficit, x='day', y='deficit',
+                          title="Дефицит по дням (все товары, шт)",
+                          labels={'day': 'День месяца', 'deficit': 'Дефицит (шт)'},
+                          color_discrete_sequence=['orange'])
+            st.plotly_chart(fig1, use_container_width=True)
 
-    # ---- Скачивание ----
-    def to_excel(df):
-        output = BytesIO()
-        with pd.ExcelWriter(output, engine="openpyxl") as writer:
-            df.to_excel(writer, sheet_name="Результат", index=False)
-        return output.getvalue()
+            # Динамика остатков и дефицита для выбранного товара (если выбран)
+            if selected_product != "Все":
+                st.subheader(f"📉 Детали по товару: {selected_product}")
+                prod_data = df_filtered[df_filtered['product'] == selected_product]
+                fig2 = go.Figure()
+                fig2.add_trace(go.Scatter(x=prod_data['day'], y=prod_data['stock'],
+                                          mode='lines+markers', name='Остаток на конец дня'))
+                fig2.add_trace(go.Bar(x=prod_data['day'], y=prod_data['deficit'],
+                                      name='Дефицит', marker_color='red'))
+                fig2.update_layout(title=f"Остатки и дефицит – {selected_product}",
+                                   xaxis_title='День', yaxis_title='Количество (шт)')
+                st.plotly_chart(fig2, use_container_width=True)
 
-    excel_data = to_excel(df_display)
-    st.download_button(
-        label="📥 Скачать результат (Excel)",
-        data=excel_data,
-        file_name="результат_анализа.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+            # Тепловая карта дефицита по городам и товарам (топ-10)
+            st.subheader("🔥 Тепловая карта дефицита (топ товаров)")
+            # Агрегируем дефицит по товарам и городам
+            heat_data = df_deficit.groupby(['city', 'product'])['deficit'].sum().reset_index()
+            # Оставляем топ-10 товаров по общему дефициту
+            top_products = heat_data.groupby('product')['deficit'].sum().nlargest(10).index
+            heat_data = heat_data[heat_data['product'].isin(top_products)]
 
-    st.sidebar.header("О программе")
-    st.sidebar.info(
-        "Приложение оценивает неудовлетворённый спрос на основе данных о продажах и остатках.\n\n"
-        "**Метод оценки:**\n"
-        "- Среднее / Медиана – по дням без дефицита (остаток > 0).\n"
-        "- Скользящее среднее – по фактическим продажам (может быть неточным).\n\n"
-        "Дефицит считается как (оценка спроса – остаток на начало дня), если остаток меньше спроса."
-    )
+            if not heat_data.empty:
+                pivot = heat_data.pivot(index='product', columns='city', values='deficit').fillna(0)
+                fig3 = px.imshow(pivot,
+                                 text_auto=True,
+                                 aspect="auto",
+                                 color_continuous_scale='Reds',
+                                 title="Дефицит по товарам (топ-10) и городам (шт)")
+                st.plotly_chart(fig3, use_container_width=True)
+            else:
+                st.info("Недостаточно данных для тепловой карты.")
 
+            # ---- Таблица с результатами ----
+            st.subheader("📋 Детальная таблица")
+            # Группируем для удобства
+            table_data = df_deficit.groupby(['city', 'product', 'day']).agg({
+                'sales': 'sum',
+                'stock': 'sum',
+                'avg_demand': 'first',
+                'deficit': 'sum'
+            }).reset_index()
+            st.dataframe(table_data, use_container_width=True)
+
+            # ---- Скачивание результата ----
+            def to_excel(df):
+                output = BytesIO()
+                with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                    df.to_excel(writer, sheet_name='Результат', index=False)
+                return output.getvalue()
+
+            excel_data = to_excel(table_data)
+            st.download_button(
+                label="📥 Скачать результат (Excel)",
+                data=excel_data,
+                file_name="результат_анализа.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+
+    else:
+        st.error("Не удалось обработать файл. Проверьте формат.")
 else:
-    st.info("👈 Загрузите Excel-файл с данными, чтобы начать анализ.")
+    st.info("👈 Загрузите Excel-файл для начала анализа.")
