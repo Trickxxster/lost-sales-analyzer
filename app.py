@@ -5,46 +5,47 @@ import plotly.graph_objects as go
 from io import BytesIO
 import numpy as np
 
-# ---------- НАСТРОЙКА СТРАНИЦЫ ----------
 st.set_page_config(page_title="Анализ неудовлетворённого спроса", layout="wide")
 
-# ---------- КАСТОМНЫЙ CSS ДЛЯ КРАСИВОГО ОФОРМЛЕНИЯ ----------
+# ---------- КАСТОМНЫЙ CSS (обновлённый) ----------
 st.markdown("""
 <style>
-    /* Основной градиентный фон */
     .stApp {
         background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
         background-attachment: fixed;
         color: #f0f0f0;
     }
-    /* Контейнеры с данными делаем полупрозрачными со стеклянным эффектом */
     .main > div {
-        background: rgba(255, 255, 255, 0.06);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
-        border-radius: 24px;
-        padding: 20px 25px;
-        margin: 12px 0;
-        box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-        border: 1px solid rgba(255,255,255,0.08);
+        background: transparent !important;
+        backdrop-filter: none !important;
+        box-shadow: none !important;
+        border: none !important;
+        padding: 8px 0;
+        margin: 0;
     }
-    /* Заголовки и текст светлые */
-    h1, h2, h3, .stMarkdown, .stDataFrame, .stMetric, .stSelectbox label, .stSlider label {
+    .stMetric, .stDataFrame, .stSelectbox, .stSlider, .stButton, .stFileUploader {
+        background: rgba(255, 255, 255, 0.05) !important;
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        border-radius: 16px;
+        padding: 12px 18px;
+        margin: 6px 0;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    }
+    h1, h2, h3, .stMarkdown, .stDataFrame, .stMetric label, .stMetric .stMetricValue {
         color: #f0f0f0 !important;
     }
-    /* Метрики выделяем */
     .stMetric label {
         color: #a0c4ff !important;
         font-weight: 600;
     }
     .stMetric .stMetricValue {
-        color: #ffffff !important;
         font-size: 2.2rem !important;
         font-weight: 700;
     }
-    /* Элементы управления (кнопки, селекты, слайдеры) */
     .stButton button, .stSelectbox div, .stSlider div, .stFileUploader div {
-        background: rgba(255, 255, 255, 0.08) !important;
+        background: rgba(255, 255, 255, 0.1) !important;
         border: 1px solid rgba(255, 255, 255, 0.15) !important;
         color: #ffffff !important;
         border-radius: 12px !important;
@@ -54,20 +55,12 @@ st.markdown("""
     .stButton button:hover {
         background: rgba(255, 255, 255, 0.2) !important;
         transform: scale(1.02);
-        border-color: rgba(255, 255, 255, 0.3) !important;
     }
-    /* Боковая панель */
     .css-1d391kg {
-        background: rgba(0, 0, 0, 0.4) !important;
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
+        background: rgba(0, 0, 0, 0.5) !important;
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
         border-right: 1px solid rgba(255, 255, 255, 0.05);
-    }
-    /* Таблицы и датафреймы */
-    .stDataFrame {
-        background: rgba(0, 0, 0, 0.2) !important;
-        border-radius: 16px;
-        padding: 8px;
     }
     .stDataFrame table {
         color: #e0e0e0 !important;
@@ -76,11 +69,6 @@ st.markdown("""
         background: rgba(255, 255, 255, 0.05) !important;
         color: #b0c4ff !important;
     }
-    /* Стилизация графиков Plotly (задаётся через layout, но тут фон) */
-    .js-plotly-plot .plotly .main-svg {
-        background: rgba(0,0,0,0) !important;
-    }
-    /* Скроллбар */
     ::-webkit-scrollbar {
         width: 8px;
         height: 8px;
@@ -96,7 +84,6 @@ st.markdown("""
     ::-webkit-scrollbar-thumb:hover {
         background: rgba(255, 255, 255, 0.4);
     }
-    /* Анимация фоновых фигур */
     .bg-animation {
         position: fixed;
         top: 0;
@@ -116,7 +103,6 @@ st.markdown("""
         animation: float 25s infinite ease-in-out;
         box-shadow: 0 0 60px rgba(100, 150, 255, 0.05);
     }
-    /* Разные размеры и положения */
     .bg-animation div:nth-child(1) {
         width: 250px;
         height: 250px;
@@ -165,7 +151,6 @@ st.markdown("""
         animation-duration: 20s;
         animation-delay: 5s;
     }
-    /* Ключевые кадры анимации */
     @keyframes float {
         0% { transform: translate(0, 0) rotate(0deg) scale(1); }
         20% { transform: translate(60px, -40px) rotate(72deg) scale(1.08); }
@@ -189,8 +174,10 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# ---------- ЗАГОЛОВОК ----------
 st.title("📊 Анализ неудовлетворённого спроса")
+
+# ---------- ДАЛЕЕ ВЕСЬ ОСТАЛЬНОЙ КОД (парсинг, расчёты, интерфейс) ----------
+# ... (вставьте сюда все функции parse_excel, calculate_deficit и интерфейс, которые были в предыдущей версии, без изменений)
 
 # ---------- ОСТАЛЬНОЙ КОД (парсинг, расчёты, графики) ----------
 # ... (весь код, который был ранее, начиная с функции parse_excel и до конца)
