@@ -5,6 +5,196 @@ import plotly.graph_objects as go
 from io import BytesIO
 import numpy as np
 
+# ---------- НАСТРОЙКА СТРАНИЦЫ ----------
+st.set_page_config(page_title="Анализ неудовлетворённого спроса", layout="wide")
+
+# ---------- КАСТОМНЫЙ CSS ДЛЯ КРАСИВОГО ОФОРМЛЕНИЯ ----------
+st.markdown("""
+<style>
+    /* Основной градиентный фон */
+    .stApp {
+        background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+        background-attachment: fixed;
+        color: #f0f0f0;
+    }
+    /* Контейнеры с данными делаем полупрозрачными со стеклянным эффектом */
+    .main > div {
+        background: rgba(255, 255, 255, 0.06);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border-radius: 24px;
+        padding: 20px 25px;
+        margin: 12px 0;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+        border: 1px solid rgba(255,255,255,0.08);
+    }
+    /* Заголовки и текст светлые */
+    h1, h2, h3, .stMarkdown, .stDataFrame, .stMetric, .stSelectbox label, .stSlider label {
+        color: #f0f0f0 !important;
+    }
+    /* Метрики выделяем */
+    .stMetric label {
+        color: #a0c4ff !important;
+        font-weight: 600;
+    }
+    .stMetric .stMetricValue {
+        color: #ffffff !important;
+        font-size: 2.2rem !important;
+        font-weight: 700;
+    }
+    /* Элементы управления (кнопки, селекты, слайдеры) */
+    .stButton button, .stSelectbox div, .stSlider div, .stFileUploader div {
+        background: rgba(255, 255, 255, 0.08) !important;
+        border: 1px solid rgba(255, 255, 255, 0.15) !important;
+        color: #ffffff !important;
+        border-radius: 12px !important;
+        padding: 8px 16px !important;
+        transition: all 0.3s ease;
+    }
+    .stButton button:hover {
+        background: rgba(255, 255, 255, 0.2) !important;
+        transform: scale(1.02);
+        border-color: rgba(255, 255, 255, 0.3) !important;
+    }
+    /* Боковая панель */
+    .css-1d391kg {
+        background: rgba(0, 0, 0, 0.4) !important;
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border-right: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    /* Таблицы и датафреймы */
+    .stDataFrame {
+        background: rgba(0, 0, 0, 0.2) !important;
+        border-radius: 16px;
+        padding: 8px;
+    }
+    .stDataFrame table {
+        color: #e0e0e0 !important;
+    }
+    .stDataFrame thead tr th {
+        background: rgba(255, 255, 255, 0.05) !important;
+        color: #b0c4ff !important;
+    }
+    /* Стилизация графиков Plotly (задаётся через layout, но тут фон) */
+    .js-plotly-plot .plotly .main-svg {
+        background: rgba(0,0,0,0) !important;
+    }
+    /* Скроллбар */
+    ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 10px;
+    }
+    ::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 10px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 255, 255, 0.4);
+    }
+    /* Анимация фоновых фигур */
+    .bg-animation {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: -1;
+        overflow: hidden;
+    }
+    .bg-animation div {
+        position: absolute;
+        display: block;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid rgba(255, 255, 255, 0.04);
+        animation: float 25s infinite ease-in-out;
+        box-shadow: 0 0 60px rgba(100, 150, 255, 0.05);
+    }
+    /* Разные размеры и положения */
+    .bg-animation div:nth-child(1) {
+        width: 250px;
+        height: 250px;
+        top: 5%;
+        left: 3%;
+        animation-duration: 28s;
+        animation-delay: 0s;
+    }
+    .bg-animation div:nth-child(2) {
+        width: 350px;
+        height: 350px;
+        top: 65%;
+        left: 85%;
+        animation-duration: 32s;
+        animation-delay: 2s;
+    }
+    .bg-animation div:nth-child(3) {
+        width: 150px;
+        height: 150px;
+        top: 80%;
+        left: 5%;
+        animation-duration: 24s;
+        animation-delay: 4s;
+    }
+    .bg-animation div:nth-child(4) {
+        width: 280px;
+        height: 280px;
+        top: 15%;
+        left: 75%;
+        animation-duration: 30s;
+        animation-delay: 1s;
+    }
+    .bg-animation div:nth-child(5) {
+        width: 200px;
+        height: 200px;
+        top: 45%;
+        left: 45%;
+        animation-duration: 36s;
+        animation-delay: 3s;
+    }
+    .bg-animation div:nth-child(6) {
+        width: 120px;
+        height: 120px;
+        top: 30%;
+        left: 20%;
+        animation-duration: 20s;
+        animation-delay: 5s;
+    }
+    /* Ключевые кадры анимации */
+    @keyframes float {
+        0% { transform: translate(0, 0) rotate(0deg) scale(1); }
+        20% { transform: translate(60px, -40px) rotate(72deg) scale(1.08); }
+        40% { transform: translate(-30px, 50px) rotate(144deg) scale(0.92); }
+        60% { transform: translate(40px, -20px) rotate(216deg) scale(1.05); }
+        80% { transform: translate(-20px, 30px) rotate(288deg) scale(0.95); }
+        100% { transform: translate(0, 0) rotate(360deg) scale(1); }
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# Добавляем HTML-элементы с анимированными фигурами
+st.markdown("""
+<div class="bg-animation">
+    <div></div>
+    <div></div>
+    <div></div>
+    <div></div>
+    <div></div>
+    <div></div>
+</div>
+""", unsafe_allow_html=True)
+
+# ---------- ЗАГОЛОВОК ----------
+st.title("📊 Анализ неудовлетворённого спроса")
+
+# ---------- ОСТАЛЬНОЙ КОД (парсинг, расчёты, графики) ----------
+# ... (весь код, который был ранее, начиная с функции parse_excel и до конца)
+
 st.set_page_config(page_title="Анализ неудовлетворённого спроса", layout="wide")
 st.title("📊 Анализ неудовлетворённого спроса")
 
