@@ -7,177 +7,113 @@ import numpy as np
 
 st.set_page_config(page_title="Анализ неудовлетворённого спроса", layout="wide")
 
-# ---------- КАСТОМНЫЙ CSS (обновлённый) ----------
+# ---------- КАСТОМНЫЙ CSS С АНИМАЦИЕЙ ФОНА ----------
 st.markdown("""
 <style>
+    /* Основной фон – анимированный градиент */
     .stApp {
-        background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
-        background-attachment: fixed;
+        background: linear-gradient(-45deg, #0b0e1a, #1a1f35, #16213e, #0f3460);
+        background-size: 400% 400%;
+        animation: gradientFlow 18s ease infinite;
         color: #f0f0f0;
+        min-height: 100vh;
     }
+    @keyframes gradientFlow {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+    }
+
+    /* Контейнеры – прозрачные, без рамок и размытия */
     .main > div {
-        background: transparent !important;
-        backdrop-filter: none !important;
-        box-shadow: none !important;
-        border: none !important;
-        padding: 8px 0;
-        margin: 0;
+        background: rgba(0, 0, 0, 0.25);
+        border-radius: 20px;
+        padding: 20px 25px;
+        margin: 12px 0;
+        border: none;
+        box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
     }
-    .stMetric, .stDataFrame, .stSelectbox, .stSlider, .stButton, .stFileUploader {
-        background: rgba(255, 255, 255, 0.05) !important;
-        backdrop-filter: blur(8px);
-        -webkit-backdrop-filter: blur(8px);
-        border-radius: 16px;
-        padding: 12px 18px;
-        margin: 6px 0;
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        box-shadow: 0 4px 20px rgba(0,0,0,0.2);
-    }
-    h1, h2, h3, .stMarkdown, .stDataFrame, .stMetric label, .stMetric .stMetricValue {
+
+    /* Заголовки, текст, метрики – светлые */
+    h1, h2, h3, .stMarkdown, .stDataFrame, .stMetric, .stSelectbox label, .stSlider label {
         color: #f0f0f0 !important;
     }
     .stMetric label {
-        color: #a0c4ff !important;
+        color: #90caf9 !important;
         font-weight: 600;
     }
     .stMetric .stMetricValue {
+        color: #ffffff !important;
         font-size: 2.2rem !important;
         font-weight: 700;
     }
+
+    /* Виджеты – без лишних рамок, на прозрачном фоне */
     .stButton button, .stSelectbox div, .stSlider div, .stFileUploader div {
-        background: rgba(255, 255, 255, 0.1) !important;
-        border: 1px solid rgba(255, 255, 255, 0.15) !important;
+        background: rgba(255, 255, 255, 0.06) !important;
+        border: 1px solid rgba(255, 255, 255, 0.12) !important;
         color: #ffffff !important;
         border-radius: 12px !important;
         padding: 8px 16px !important;
         transition: all 0.3s ease;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
     }
     .stButton button:hover {
-        background: rgba(255, 255, 255, 0.2) !important;
+        background: rgba(255, 255, 255, 0.15) !important;
+        border-color: rgba(255, 255, 255, 0.25) !important;
         transform: scale(1.02);
     }
+    /* Убираем лишние рамки вокруг слайдера */
+    .stSlider div[data-baseweb="slider"] {
+        background: transparent !important;
+        border: none !important;
+    }
+    .stSlider div[data-baseweb="slider"] div {
+        background: transparent !important;
+        border: none !important;
+    }
+    /* Боковая панель – полупрозрачная, без размытия */
     .css-1d391kg {
         background: rgba(0, 0, 0, 0.5) !important;
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
         border-right: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    /* Таблицы */
+    .stDataFrame {
+        background: rgba(0, 0, 0, 0.2) !important;
+        border-radius: 16px;
+        padding: 8px;
+        border: none;
     }
     .stDataFrame table {
         color: #e0e0e0 !important;
     }
     .stDataFrame thead tr th {
         background: rgba(255, 255, 255, 0.05) !important;
-        color: #b0c4ff !important;
+        color: #90caf9 !important;
     }
+
+    /* Скроллбар */
     ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
+        width: 6px;
+        height: 6px;
     }
     ::-webkit-scrollbar-track {
-        background: rgba(255, 255, 255, 0.05);
+        background: rgba(255, 255, 255, 0.03);
         border-radius: 10px;
     }
     ::-webkit-scrollbar-thumb {
-        background: rgba(255, 255, 255, 0.2);
+        background: rgba(255, 255, 255, 0.15);
         border-radius: 10px;
     }
     ::-webkit-scrollbar-thumb:hover {
-        background: rgba(255, 255, 255, 0.4);
-    }
-    .bg-animation {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        pointer-events: none;
-        z-index: -1;
-        overflow: hidden;
-    }
-    .bg-animation div {
-        position: absolute;
-        display: block;
-        border-radius: 50%;
-        background: rgba(255, 255, 255, 0.02);
-        border: 1px solid rgba(255, 255, 255, 0.04);
-        animation: float 25s infinite ease-in-out;
-        box-shadow: 0 0 60px rgba(100, 150, 255, 0.05);
-    }
-    .bg-animation div:nth-child(1) {
-        width: 250px;
-        height: 250px;
-        top: 5%;
-        left: 3%;
-        animation-duration: 28s;
-        animation-delay: 0s;
-    }
-    .bg-animation div:nth-child(2) {
-        width: 350px;
-        height: 350px;
-        top: 65%;
-        left: 85%;
-        animation-duration: 32s;
-        animation-delay: 2s;
-    }
-    .bg-animation div:nth-child(3) {
-        width: 150px;
-        height: 150px;
-        top: 80%;
-        left: 5%;
-        animation-duration: 24s;
-        animation-delay: 4s;
-    }
-    .bg-animation div:nth-child(4) {
-        width: 280px;
-        height: 280px;
-        top: 15%;
-        left: 75%;
-        animation-duration: 30s;
-        animation-delay: 1s;
-    }
-    .bg-animation div:nth-child(5) {
-        width: 200px;
-        height: 200px;
-        top: 45%;
-        left: 45%;
-        animation-duration: 36s;
-        animation-delay: 3s;
-    }
-    .bg-animation div:nth-child(6) {
-        width: 120px;
-        height: 120px;
-        top: 30%;
-        left: 20%;
-        animation-duration: 20s;
-        animation-delay: 5s;
-    }
-    @keyframes float {
-        0% { transform: translate(0, 0) rotate(0deg) scale(1); }
-        20% { transform: translate(60px, -40px) rotate(72deg) scale(1.08); }
-        40% { transform: translate(-30px, 50px) rotate(144deg) scale(0.92); }
-        60% { transform: translate(40px, -20px) rotate(216deg) scale(1.05); }
-        80% { transform: translate(-20px, 30px) rotate(288deg) scale(0.95); }
-        100% { transform: translate(0, 0) rotate(360deg) scale(1); }
+        background: rgba(255, 255, 255, 0.3);
     }
 </style>
 """, unsafe_allow_html=True)
-
-# Добавляем HTML-элементы с анимированными фигурами
-st.markdown("""
-<div class="bg-animation">
-    <div></div>
-    <div></div>
-    <div></div>
-    <div></div>
-    <div></div>
-    <div></div>
-</div>
-""", unsafe_allow_html=True)
-
-st.title("📊 Анализ неудовлетворённого спроса")
-
-# ---------- ДАЛЕЕ ВЕСЬ ОСТАЛЬНОЙ КОД (парсинг, расчёты, интерфейс) ----------
-# ... (вставьте сюда все функции parse_excel, calculate_deficit и интерфейс, которые были в предыдущей версии, без изменений)
 
 # ---------- ОСТАЛЬНОЙ КОД (парсинг, расчёты, графики) ----------
 # ... (весь код, который был ранее, начиная с функции parse_excel и до конца)
