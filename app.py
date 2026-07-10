@@ -5,144 +5,11 @@ import plotly.graph_objects as go
 from io import BytesIO
 import numpy as np
 
-# ---------- НАСТРОЙКА СТРАНИЦЫ ----------
 st.set_page_config(page_title="Анализ неудовлетворённого спроса", layout="wide")
 
-# ---------- ЛЁГКИЕ CSS СТИЛИ (без анимации фона) ----------
-st.markdown("""
-<style>
-    /* Контейнеры данных – полупрозрачные карточки */
-    .main > div {
-        background: rgba(0, 0, 0, 0.25) !important;
-        border-radius: 20px !important;
-        padding: 20px 25px !important;
-        margin: 16px 0 !important;
-        border: 1px solid rgba(255, 255, 255, 0.06) !important;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4) !important;
-        backdrop-filter: blur(4px) !important;
-        -webkit-backdrop-filter: blur(4px) !important;
-    }
-
-    /* Заголовки, текст, метрики – светлые */
-    h1, h2, h3, .stMarkdown, .stDataFrame, .stMetric, .stSelectbox label, .stSlider label {
-        color: #f0f6fc !important;
-    }
-    .stMetric label {
-        color: #58a6ff !important;
-        font-weight: 500;
-    }
-    .stMetric .stMetricValue {
-        color: #ffffff !important;
-        font-size: 2.2rem !important;
-        font-weight: 700;
-    }
-
-    /* Виджеты */
-    .stButton button, .stSelectbox div, .stSlider div, .stFileUploader div {
-        background: rgba(255, 255, 255, 0.06) !important;
-        border: 1px solid rgba(255, 255, 255, 0.1) !important;
-        color: #f0f6fc !important;
-        border-radius: 12px !important;
-        padding: 8px 18px !important;
-        transition: all 0.2s ease !important;
-    }
-    .stButton button:hover {
-        background: rgba(255, 255, 255, 0.15) !important;
-        border-color: rgba(255, 255, 255, 0.2) !important;
-        transform: scale(1.02);
-    }
-    /* Убираем лишние рамки вокруг слайдера */
-    .stSlider div[data-baseweb="slider"] {
-        background: transparent !important;
-        border: none !important;
-    }
-    .stSlider div[data-baseweb="slider"] div {
-        background: transparent !important;
-        border: none !important;
-    }
-
-    /* Боковая панель */
-    .css-1d391kg {
-        background: rgba(0, 0, 0, 0.5) !important;
-        backdrop-filter: blur(8px) !important;
-        border-right: 1px solid rgba(255, 255, 255, 0.05) !important;
-    }
-
-    /* Таблицы */
-    .stDataFrame {
-        background: rgba(0, 0, 0, 0.2) !important;
-        border-radius: 16px !important;
-        padding: 8px !important;
-        border: none !important;
-    }
-    .stDataFrame table {
-        color: #e6edf3 !important;
-    }
-    .stDataFrame thead tr th {
-        background: rgba(255, 255, 255, 0.04) !important;
-        color: #58a6ff !important;
-    }
-
-    /* Скроллбар */
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); border-radius: 10px; }
-    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 10px; }
-    ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.3); }
-</style>
-""", unsafe_allow_html=True)
-
-# ---------- JAVASCRIPT АНИМАЦИЯ ФОНА (через компонент) ----------
-st.components.v1.html("""
-<div id="bg-animation" style="position:fixed; top:0; left:0; width:100%; height:100%; z-index:-1; overflow:hidden; pointer-events:none; background: linear-gradient(135deg, #0a0e1a, #1a1f3a, #2d1b3d, #0a2a4a);">
-    <canvas id="canvas" style="width:100%; height:100%;"></canvas>
-    <script>
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
-        function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
-        window.addEventListener('resize', resize);
-        resize();
-
-        const circles = [];
-        const numCircles = 18;
-        for (let i = 0; i < numCircles; i++) {
-            circles.push({
-                x: Math.random() * canvas.width,
-                y: Math.random() * canvas.height,
-                r: 30 + Math.random() * 150,
-                dx: (Math.random() - 0.5) * 0.4,
-                dy: (Math.random() - 0.5) * 0.4,
-                color: `hsla(${Math.random() * 360}, 70%, 60%, 0.03)`,
-                borderColor: `hsla(${Math.random() * 360}, 70%, 70%, 0.02)`
-            });
-        }
-
-        function animate() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            circles.forEach(c => {
-                c.x += c.dx;
-                c.y += c.dy;
-                if (c.x < 0 || c.x > canvas.width) c.dx *= -1;
-                if (c.y < 0 || c.y > canvas.height) c.dy *= -1;
-
-                ctx.beginPath();
-                ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2);
-                ctx.fillStyle = c.color;
-                ctx.fill();
-                ctx.strokeStyle = c.borderColor;
-                ctx.lineWidth = 1;
-                ctx.stroke();
-            });
-            requestAnimationFrame(animate);
-        }
-        animate();
-    </script>
-</div>
-""", height=0)
-
-# ---------- ЗАГОЛОВОК ----------
 st.title("📊 Анализ неудовлетворённого спроса")
 
-# ---------- ФУНКЦИИ ПАРСИНГА И РАСЧЁТА ----------
+# --------------------- Парсинг файла ---------------------
 def parse_excel(file):
     df_raw = pd.read_excel(file, header=None, dtype=str)
     df_raw = df_raw.fillna('')
@@ -195,6 +62,7 @@ def parse_excel(file):
     df['stock'] = df['stock'].astype(float)
     return df
 
+# --------------------- Расчёт дефицита ---------------------
 def calculate_deficit(df):
     results = []
     for (city, product), group in df.groupby(['city', 'product']):
@@ -233,7 +101,7 @@ def calculate_deficit(df):
     }
     return df_result, metrics
 
-# ---------- ИНТЕРФЕЙС ----------
+# --------------------- Интерфейс ---------------------
 uploaded_file = st.file_uploader("📂 Загрузите Excel-файл", type=["xlsx"])
 
 if uploaded_file:
@@ -276,12 +144,13 @@ if uploaded_file:
             col3.metric("Товаров с дефицитом", f"{n_products}")
             col4.metric("Городов", f"{n_cities}")
 
-            # ---- ГРАФИКИ ----
+            # ---- ГРАФИКИ (все с тёмной темой plotly_dark) ----
             st.subheader("🏙️ Дефицит по городам")
             fig_city = px.bar(metrics['by_city'], x='city', y='deficit',
                               title="Суммарный дефицит по городам (шт)",
                               labels={'city': 'Город', 'deficit': 'Дефицит (шт)'},
                               color='deficit', color_continuous_scale='Reds')
+            fig_city.update_layout(template='plotly_dark')
             st.plotly_chart(fig_city, width='stretch')
 
             st.subheader("📦 Дефицит по товарам (топ-10)")
@@ -291,7 +160,7 @@ if uploaded_file:
                               title="Топ-10 товаров по дефициту (шт)",
                               labels={'deficit': 'Дефицит (шт)', 'product': 'Товар'},
                               color='deficit', color_continuous_scale='Reds')
-            fig_prod.update_layout(yaxis={'categoryorder': 'total ascending'})
+            fig_prod.update_layout(yaxis={'categoryorder': 'total ascending'}, template='plotly_dark')
             st.plotly_chart(fig_prod, width='stretch')
 
             st.subheader("📅 Количество дней с дефицитом по товарам")
@@ -301,7 +170,7 @@ if uploaded_file:
                               title="Топ-15 товаров по количеству дней с дефицитом",
                               labels={'days_with_deficit': 'Дней с дефицитом', 'product': 'Товар'},
                               color='days_with_deficit', color_continuous_scale='Oranges')
-            fig_days.update_layout(yaxis={'categoryorder': 'total ascending'})
+            fig_days.update_layout(yaxis={'categoryorder': 'total ascending'}, template='plotly_dark')
             st.plotly_chart(fig_days, width='stretch')
 
             st.subheader("🔥 Тепловая карта дефицита (товары × города)")
@@ -313,7 +182,7 @@ if uploaded_file:
                 fig_heat = px.imshow(pivot, text_auto=True, aspect="auto",
                                      color_continuous_scale='Reds',
                                      title=f"Дефицит по товарам (топ-{top_n_heat}) и городам (шт)")
-                fig_heat.update_layout(height=600)
+                fig_heat.update_layout(height=600, template='plotly_dark')
                 st.plotly_chart(fig_heat, width='stretch')
             else:
                 st.info("Недостаточно данных для тепловой карты.")
@@ -338,7 +207,7 @@ if uploaded_file:
                                                color_continuous_scale='Reds',
                                                title=f"Дефицит (шт) по дням – город {city_for_daily}",
                                                labels={'product': 'Товар', 'day': 'День месяца', 'color': 'Дефицит (шт)'})
-                    fig_daily_heat.update_layout(height=max(400, 30*len(pivot_daily)))
+                    fig_daily_heat.update_layout(height=max(400, 30*len(pivot_daily)), template='plotly_dark')
                     st.plotly_chart(fig_daily_heat, width='stretch')
                     non_zero = df_city[df_city['deficit'] > 0]
                     if not non_zero.empty:
@@ -371,7 +240,8 @@ if uploaded_file:
                     fig_det.add_trace(go.Bar(x=daily['day'], y=daily['deficit'],
                                              name='Дефицит', marker_color='red'))
                     fig_det.update_layout(title=f"Остатки, продажи и дефицит – {selected_product}{city_label}",
-                                          xaxis_title='День месяца', yaxis_title='Количество (шт)')
+                                          xaxis_title='День месяца', yaxis_title='Количество (шт)',
+                                          template='plotly_dark')
                     st.plotly_chart(fig_det, width='stretch')
                     st.dataframe(daily)
                 else:
