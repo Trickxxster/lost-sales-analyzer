@@ -144,13 +144,13 @@ if uploaded_file:
             col3.metric("Товаров с дефицитом", f"{n_products}")
             col4.metric("Городов", f"{n_cities}")
 
-            # ---- ГРАФИКИ (все с тёмной темой plotly_dark) ----
+            # ---- ГРАФИКИ (все с темой simple_white) ----
             st.subheader("🏙️ Дефицит по городам")
             fig_city = px.bar(metrics['by_city'], x='city', y='deficit',
                               title="Суммарный дефицит по городам (шт)",
                               labels={'city': 'Город', 'deficit': 'Дефицит (шт)'},
                               color='deficit', color_continuous_scale='Reds')
-            fig_city.update_layout(template='plotly_dark')
+            fig_city.update_layout(template='simple_white')
             st.plotly_chart(fig_city, width='stretch')
 
             st.subheader("📦 Дефицит по товарам (топ-10)")
@@ -160,7 +160,7 @@ if uploaded_file:
                               title="Топ-10 товаров по дефициту (шт)",
                               labels={'deficit': 'Дефицит (шт)', 'product': 'Товар'},
                               color='deficit', color_continuous_scale='Reds')
-            fig_prod.update_layout(yaxis={'categoryorder': 'total ascending'}, template='plotly_dark')
+            fig_prod.update_layout(yaxis={'categoryorder': 'total ascending'}, template='simple_white')
             st.plotly_chart(fig_prod, width='stretch')
 
             st.subheader("📅 Количество дней с дефицитом по товарам")
@@ -170,7 +170,7 @@ if uploaded_file:
                               title="Топ-15 товаров по количеству дней с дефицитом",
                               labels={'days_with_deficit': 'Дней с дефицитом', 'product': 'Товар'},
                               color='days_with_deficit', color_continuous_scale='Oranges')
-            fig_days.update_layout(yaxis={'categoryorder': 'total ascending'}, template='plotly_dark')
+            fig_days.update_layout(yaxis={'categoryorder': 'total ascending'}, template='simple_white')
             st.plotly_chart(fig_days, width='stretch')
 
             st.subheader("🔥 Тепловая карта дефицита (товары × города)")
@@ -182,7 +182,7 @@ if uploaded_file:
                 fig_heat = px.imshow(pivot, text_auto=True, aspect="auto",
                                      color_continuous_scale='Reds',
                                      title=f"Дефицит по товарам (топ-{top_n_heat}) и городам (шт)")
-                fig_heat.update_layout(height=600, template='plotly_dark')
+                fig_heat.update_layout(height=600, template='simple_white')
                 st.plotly_chart(fig_heat, width='stretch')
             else:
                 st.info("Недостаточно данных для тепловой карты.")
@@ -207,7 +207,7 @@ if uploaded_file:
                                                color_continuous_scale='Reds',
                                                title=f"Дефицит (шт) по дням – город {city_for_daily}",
                                                labels={'product': 'Товар', 'day': 'День месяца', 'color': 'Дефицит (шт)'})
-                    fig_daily_heat.update_layout(height=max(400, 30*len(pivot_daily)), template='plotly_dark')
+                    fig_daily_heat.update_layout(height=max(400, 30*len(pivot_daily)), template='simple_white')
                     st.plotly_chart(fig_daily_heat, width='stretch')
                     non_zero = df_city[df_city['deficit'] > 0]
                     if not non_zero.empty:
@@ -241,7 +241,7 @@ if uploaded_file:
                                              name='Дефицит', marker_color='red'))
                     fig_det.update_layout(title=f"Остатки, продажи и дефицит – {selected_product}{city_label}",
                                           xaxis_title='День месяца', yaxis_title='Количество (шт)',
-                                          template='plotly_dark')
+                                          template='simple_white')
                     st.plotly_chart(fig_det, width='stretch')
                     st.dataframe(daily)
                 else:
