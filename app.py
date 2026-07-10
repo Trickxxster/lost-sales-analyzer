@@ -4,10 +4,47 @@ import plotly.express as px
 import plotly.graph_objects as go
 from io import BytesIO
 import numpy as np
+import re
 
 st.set_page_config(page_title="Анализ неудовлетворённого спроса", layout="wide")
 
 st.title("📊 Анализ неудовлетворённого спроса")
+
+# --------------------- Цены (сопоставление) ---------------------
+def get_price(product_name):
+    """
+    Возвращает цену товара на основе его названия.
+    Использует ключевые слова и регулярные выражения.
+    """
+    product_lower = product_name.lower()
+    
+    # Сначала ищем точные совпадения для чехлов
+    if 'eligant' in product_lower:
+        return 2490
+    if 'urban' in product_lower:  # Urban, Urban+
+        return 2990
+    if 'clair' in product_lower:
+        return 2990
+    
+    # Зарядные устройства
+    if 'balance' in product_lower:
+        return 3490
+    if 'pulse' in product_lower:
+        return 4490
+    
+    # Powerbank
+    if 'powerbank' in product_lower:
+        # Определяем ёмкость
+        if '10 000' in product_lower or '10000' in product_lower:
+            return 5990
+        elif '5 000' in product_lower or '5000' in product_lower:
+            return 4490
+        else:
+            # Если ёмкость не указана, возвращаем среднюю цену
+            return 5490
+    
+    # Если ничего не подошло – цена 0 (будет видно, что не задана)
+    return 0
 
 # --------------------- Парсинг файла ---------------------
 def parse_excel(file):
@@ -34,6 +71,8 @@ def parse_excel(file):
             product_name = str(row[0]).strip()
             product_char = str(row[1]).strip()
             product = f"{product_name} | {product_char}" if product_char else product_name
+            # Определяем цену для товара
+            price = get_price(product)
             for city, col_start in cities.items():
                 if col_start + 9 >= len(row):
                     continue
@@ -52,7 +91,8 @@ def parse_excel(file):
                     'city': city,
                     'product': product,
                     'sales': sales,
-                    'stock': stock
+                    'stock': stock,
+                    'price': price
                 })
     if not records:
         st.error("Не удалось извлечь данные. Проверьте структуру файла.")
@@ -60,6 +100,7 @@ def parse_excel(file):
     df = pd.DataFrame(records)
     df['sales'] = df['sales'].astype(float)
     df['stock'] = df['stock'].astype(float)
+    df['price'] = df['price'].astype(float)
     return df
 
 # --------------------- Расчёт дефицита ---------------------
@@ -72,10 +113,13 @@ def calculate_deficit(df):
         avg_demand = available['sales'].mean()
         if avg_demand <= 0:
             continue
+        # Берём цену из первой записи (она должна быть одинаковой для товара)
+        price = group.iloc[0]['price']
         for _, row in group.iterrows():
             day = row['day']
             stock = row['stock']
             deficit = avg_demand if stock == 0 else 0.0
+            lost_revenue = deficit * price
             results.append({
                 'city': city,
                 'product': product,
@@ -83,20 +127,29 @@ def calculate_deficit(df):
                 'sales': row['sales'],
                 'stock': stock,
                 'avg_demand': avg_demand,
-                'deficit': deficit
+                'deficit': deficit,
+                'price': price,
+                'lost_revenue': lost_revenue
             })
     df_result = pd.DataFrame(results)
     if df_result.empty:
         return None, None
     total_deficit = df_result['deficit'].sum()
+    total_lost_revenue = df_result['lost_revenue'].sum()
     by_product = df_result.groupby('product')['deficit'].sum().reset_index()
     by_city = df_result.groupby('city')['deficit'].sum().reset_index()
+    # Добавим упущенную прибыль по товарам и городам для дополнительных графиков
+    lost_by_product = df_result.groupby('product')['lost_revenue'].sum().reset_index()
+    lost_by_city = df_result.groupby('city')['lost_revenue'].sum().reset_index()
     days_with_deficit = df_result[df_result['deficit'] > 0].groupby('product')['day'].nunique().reset_index()
     days_with_deficit.columns = ['product', 'days_with_deficit']
     metrics = {
         'total_deficit': total_deficit,
+        'total_lost_revenue': total_lost_revenue,
         'by_product': by_product,
         'by_city': by_city,
+        'lost_by_product': lost_by_product,
+        'lost_by_city': lost_by_city,
         'days_with_deficit': days_with_deficit
     }
     return df_result, metrics
@@ -131,20 +184,22 @@ if uploaded_file:
             selected_product = st.sidebar.selectbox("Товар для детального графика", ["Все"] + products)
             top_n_heat = st.sidebar.slider("Количество товаров на тепловой карте", min_value=5, max_value=50, value=15)
 
-            # ---- Общие метрики ----
+            # ---- Общие метрики (с упущенной прибылью) ----
             total_def = metrics['total_deficit']
+            total_lost = metrics['total_lost_revenue']
             total_days = df_deficit['day'].nunique()
             days_with_def = df_deficit[df_deficit['deficit'] > 0]['day'].nunique()
             n_products = df_deficit['product'].nunique()
             n_cities = df_deficit['city'].nunique()
 
-            col1, col2, col3, col4 = st.columns(4)
+            col1, col2, col3, col4, col5 = st.columns(5)
             col1.metric("Общий дефицит (шт)", f"{total_def:,.0f}")
-            col2.metric("Дней с дефицитом", f"{days_with_def} из {total_days}")
-            col3.metric("Товаров с дефицитом", f"{n_products}")
-            col4.metric("Городов", f"{n_cities}")
+            col2.metric("Упущенная прибыль (руб.)", f"{total_lost:,.2f}")
+            col3.metric("Дней с дефицитом", f"{days_with_def} из {total_days}")
+            col4.metric("Товаров с дефицитом", f"{n_products}")
+            col5.metric("Городов", f"{n_cities}")
 
-            # ---- ГРАФИКИ (все с темой simple_white) ----
+            # ---- ГРАФИКИ (тема simple_white) ----
             st.subheader("🏙️ Дефицит по городам")
             fig_city = px.bar(metrics['by_city'], x='city', y='deficit',
                               title="Суммарный дефицит по городам (шт)",
@@ -152,6 +207,15 @@ if uploaded_file:
                               color='deficit', color_continuous_scale='Reds')
             fig_city.update_layout(template='simple_white')
             st.plotly_chart(fig_city, width='stretch')
+
+            # ---- Дополнительный график: Упущенная прибыль по городам ----
+            st.subheader("💰 Упущенная прибыль по городам")
+            fig_lost_city = px.bar(metrics['lost_by_city'], x='city', y='lost_revenue',
+                                   title="Упущенная прибыль по городам (руб.)",
+                                   labels={'city': 'Город', 'lost_revenue': 'Упущенная прибыль (руб.)'},
+                                   color='lost_revenue', color_continuous_scale='Reds')
+            fig_lost_city.update_layout(template='simple_white')
+            st.plotly_chart(fig_lost_city, width='stretch')
 
             st.subheader("📦 Дефицит по товарам (топ-10)")
             top_products = metrics['by_product'].nlargest(10, 'deficit')
@@ -252,7 +316,9 @@ if uploaded_file:
                 'sales': 'sum',
                 'stock': 'sum',
                 'avg_demand': 'first',
-                'deficit': 'sum'
+                'deficit': 'sum',
+                'price': 'first',
+                'lost_revenue': 'sum'
             }).reset_index()
             st.dataframe(detail)
 
