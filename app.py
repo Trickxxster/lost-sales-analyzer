@@ -7,16 +7,29 @@ import numpy as np
 
 st.set_page_config(page_title="Анализ неудовлетворённого спроса", layout="wide")
 
-# ---------- КАСТОМНЫЙ CSS С АНИМАЦИЕЙ ФОНА ----------
+# ---------- КАСТОМНЫЙ CSS С АНИМАЦИЕЙ И ТЁМНЫМ ФОНОМ ----------
 st.markdown("""
 <style>
-    /* Основной фон – анимированный градиент */
-    .stApp {
-        background: linear-gradient(-45deg, #0b0e1a, #1a1f35, #16213e, #0f3460);
+    /* Принудительно устанавливаем тёмный фон для всей страницы */
+    body, .stApp, .stAppViewContainer, .main, .block-container {
+        background-color: #0a0e1a !important;
+        background-image: linear-gradient(135deg, #0a0e1a 0%, #1a1f35 50%, #16213e 100%) !important;
+        background-attachment: fixed !important;
+        color: #f0f0f0 !important;
+    }
+    /* Анимация градиента через псевдоэлемент */
+    .stApp::before {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(-45deg, #0a0e1a, #1a1f35, #16213e, #0f3460);
         background-size: 400% 400%;
-        animation: gradientFlow 18s ease infinite;
-        color: #f0f0f0;
-        min-height: 100vh;
+        animation: gradientFlow 20s ease infinite;
+        z-index: -1;
+        pointer-events: none;
     }
     @keyframes gradientFlow {
         0% { background-position: 0% 50%; }
@@ -24,19 +37,27 @@ st.markdown("""
         100% { background-position: 0% 50%; }
     }
 
-    /* Контейнеры – прозрачные, без рамок и размытия */
+    /* Контейнеры данных – прозрачные, без лишних рамок */
+    .stMarkdown, .stDataFrame, .stMetric, .stSelectbox, .stSlider, .stFileUploader, .stButton {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+    }
+
+    /* Блоки с данными (все div внутри main) делаем полупрозрачными с тенью */
     .main > div {
-        background: rgba(0, 0, 0, 0.25);
-        border-radius: 20px;
-        padding: 20px 25px;
-        margin: 12px 0;
-        border: none;
-        box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+        background: rgba(0, 0, 0, 0.3) !important;
+        border-radius: 16px !important;
+        padding: 20px 25px !important;
+        margin: 10px 0 !important;
+        border: 1px solid rgba(255, 255, 255, 0.05) !important;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5) !important;
+        backdrop-filter: none !important;
     }
 
     /* Заголовки, текст, метрики – светлые */
-    h1, h2, h3, .stMarkdown, .stDataFrame, .stMetric, .stSelectbox label, .stSlider label {
-        color: #f0f0f0 !important;
+    h1, h2, h3, h4, .stMarkdown, .stDataFrame, .stMetric, label, .stSelectbox label, .stSlider label {
+        color: #e8e8e8 !important;
     }
     .stMetric label {
         color: #90caf9 !important;
@@ -48,20 +69,18 @@ st.markdown("""
         font-weight: 700;
     }
 
-    /* Виджеты – без лишних рамок, на прозрачном фоне */
-    .stButton button, .stSelectbox div, .stSlider div, .stFileUploader div {
-        background: rgba(255, 255, 255, 0.06) !important;
-        border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    /* Виджеты – без фона и рамок, только текст */
+    .stSelectbox div, .stSlider div, .stFileUploader div, .stButton button {
+        background: rgba(255, 255, 255, 0.05) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
         color: #ffffff !important;
-        border-radius: 12px !important;
-        padding: 8px 16px !important;
+        border-radius: 8px !important;
+        padding: 6px 12px !important;
         transition: all 0.3s ease;
-        backdrop-filter: none !important;
-        -webkit-backdrop-filter: none !important;
     }
     .stButton button:hover {
         background: rgba(255, 255, 255, 0.15) !important;
-        border-color: rgba(255, 255, 255, 0.25) !important;
+        border-color: rgba(255, 255, 255, 0.2) !important;
         transform: scale(1.02);
     }
     /* Убираем лишние рамки вокруг слайдера */
@@ -73,18 +92,15 @@ st.markdown("""
         background: transparent !important;
         border: none !important;
     }
-    /* Боковая панель – полупрозрачная, без размытия */
+    /* Боковая панель */
     .css-1d391kg {
-        background: rgba(0, 0, 0, 0.5) !important;
-        backdrop-filter: none !important;
-        -webkit-backdrop-filter: none !important;
-        border-right: 1px solid rgba(255, 255, 255, 0.05);
+        background: rgba(0, 0, 0, 0.6) !important;
+        border-right: 1px solid rgba(255, 255, 255, 0.05) !important;
     }
-
     /* Таблицы */
     .stDataFrame {
         background: rgba(0, 0, 0, 0.2) !important;
-        border-radius: 16px;
+        border-radius: 12px;
         padding: 8px;
         border: none;
     }
@@ -96,31 +112,50 @@ st.markdown("""
         color: #90caf9 !important;
     }
 
-    /* Скроллбар */
-    ::-webkit-scrollbar {
-        width: 6px;
-        height: 6px;
+    /* Стили для анимированных "пузырьков" (лава) */
+    .bubbles {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: -1;
+        overflow: hidden;
     }
-    ::-webkit-scrollbar-track {
-        background: rgba(255, 255, 255, 0.03);
-        border-radius: 10px;
+    .bubble {
+        position: absolute;
+        bottom: -150px;
+        background: rgba(255, 255, 255, 0.02);
+        border-radius: 50%;
+        border: 1px solid rgba(255, 255, 255, 0.03);
+        animation: rise 20s infinite ease-in-out;
     }
-    ::-webkit-scrollbar-thumb {
-        background: rgba(255, 255, 255, 0.15);
-        border-radius: 10px;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-        background: rgba(255, 255, 255, 0.3);
+    .bubble:nth-child(1) { width: 80px; height: 80px; left: 10%; animation-duration: 22s; animation-delay: 0s; }
+    .bubble:nth-child(2) { width: 120px; height: 120px; left: 30%; animation-duration: 26s; animation-delay: 2s; }
+    .bubble:nth-child(3) { width: 60px; height: 60px; left: 50%; animation-duration: 18s; animation-delay: 4s; }
+    .bubble:nth-child(4) { width: 150px; height: 150px; left: 70%; animation-duration: 30s; animation-delay: 1s; }
+    .bubble:nth-child(5) { width: 90px; height: 90px; left: 85%; animation-duration: 24s; animation-delay: 3s; }
+    .bubble:nth-child(6) { width: 100px; height: 100px; left: 20%; animation-duration: 28s; animation-delay: 5s; }
+
+    @keyframes rise {
+        0% { transform: translateY(0) scale(1) rotate(0deg); opacity: 0.2; }
+        20% { opacity: 0.6; }
+        80% { opacity: 0.6; }
+        100% { transform: translateY(-110vh) scale(1.5) rotate(720deg); opacity: 0; }
     }
 </style>
+<div class="bubbles">
+    <div class="bubble"></div>
+    <div class="bubble"></div>
+    <div class="bubble"></div>
+    <div class="bubble"></div>
+    <div class="bubble"></div>
+    <div class="bubble"></div>
+</div>
 """, unsafe_allow_html=True)
 
-# ---------- ОСТАЛЬНОЙ КОД (парсинг, расчёты, графики) ----------
-# ... (весь код, который был ранее, начиная с функции parse_excel и до конца)
-
-st.set_page_config(page_title="Анализ неудовлетворённого спроса", layout="wide")
 st.title("📊 Анализ неудовлетворённого спроса")
-
 # --------------------- Парсинг файла ---------------------
 def parse_excel(file):
     """
