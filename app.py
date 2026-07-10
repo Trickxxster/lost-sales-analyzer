@@ -8,185 +8,50 @@ import numpy as np
 # ---------- НАСТРОЙКА СТРАНИЦЫ ----------
 st.set_page_config(page_title="Анализ неудовлетворённого спроса", layout="wide")
 
-# ---------- ПРИНУДИТЕЛЬНЫЙ CSS (с !important) ----------
-st.markdown("""
-<style>
-    /* Переопределяем фон с !important */
-    .stApp, html, body, .main {
-        background: linear-gradient(-45deg, #0a0e1a, #1a1f3a, #2d1b3d, #0a2a4a) !important;
-        background-size: 400% 400% !important;
-        animation: gradientFlow 20s ease infinite !important;
-        min-height: 100vh !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        color: #e6edf3 !important;
-        font-family: 'Inter', 'Segoe UI', sans-serif !important;
-    }
-
-    /* Анимированные фигуры (фон) */
-    .bg-shapes {
-        position: fixed !important;
-        top: 0 !important;
-        left: 0 !important;
-        width: 100% !important;
-        height: 100% !important;
-        pointer-events: none !important;
-        z-index: -1 !important;
-        overflow: hidden !important;
-    }
-    .bg-shapes div {
-        position: absolute !important;
-        border-radius: 50% !important;
-        background: rgba(255, 255, 255, 0.04) !important;
-        border: 1px solid rgba(255, 255, 255, 0.05) !important;
-        animation: floatShape 35s infinite alternate ease-in-out !important;
-    }
-    .bg-shapes div:nth-child(1) {
-        width: 400px !important; height: 400px !important; top: -10% !important; left: -10% !important;
-        animation-duration: 40s !important;
-        background: radial-gradient(circle, rgba(100, 150, 255, 0.08), transparent) !important;
-    }
-    .bg-shapes div:nth-child(2) {
-        width: 250px !important; height: 250px !important; bottom: 5% !important; right: 5% !important;
-        animation-duration: 30s !important; animation-delay: -5s !important;
-        border-radius: 30% 70% 50% 50% / 50% 40% 60% 50% !important;
-        background: radial-gradient(circle, rgba(255, 100, 200, 0.06), transparent) !important;
-    }
-    .bg-shapes div:nth-child(3) {
-        width: 180px !important; height: 180px !important; top: 40% !important; left: 70% !important;
-        animation-duration: 45s !important; animation-delay: -10s !important;
-        border-radius: 40% 60% 30% 70% / 50% 40% 60% 50% !important;
-        background: radial-gradient(circle, rgba(255, 200, 50, 0.05), transparent) !important;
-    }
-    .bg-shapes div:nth-child(4) {
-        width: 120px !important; height: 120px !important; bottom: 30% !important; left: 15% !important;
-        animation-duration: 25s !important; animation-delay: -2s !important;
-        border-radius: 60% 40% 50% 50% / 30% 60% 40% 70% !important;
-        background: radial-gradient(circle, rgba(0, 255, 200, 0.05), transparent) !important;
-    }
-    .bg-shapes div:nth-child(5) {
-        width: 300px !important; height: 300px !important; top: 70% !important; left: 60% !important;
-        animation-duration: 50s !important; animation-delay: -8s !important;
-        border-radius: 30% 70% 60% 40% / 50% 40% 60% 50% !important;
-        background: radial-gradient(circle, rgba(150, 100, 255, 0.06), transparent) !important;
-    }
-    @keyframes floatShape {
-        0% { transform: translate(0, 0) rotate(0deg) scale(1); opacity: 0.5; }
-        100% { transform: translate(80px, -60px) rotate(360deg) scale(1.3); opacity: 1; }
-    }
-
-    /* Контейнеры данных */
-    .main > div {
-        background: rgba(0, 0, 0, 0.25) !important;
-        border-radius: 24px !important;
-        padding: 20px 28px !important;
-        margin: 16px 0 !important;
-        border: 1px solid rgba(255, 255, 255, 0.05) !important;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5) !important;
-        backdrop-filter: blur(6px) !important;
-        -webkit-backdrop-filter: blur(6px) !important;
-    }
-
-    /* Заголовки и текст */
-    h1, h2, h3, .stMarkdown, .stDataFrame, .stMetric, .stSelectbox label, .stSlider label {
-        color: #f0f6fc !important;
-    }
-    .stMetric label {
-        color: #58a6ff !important;
-        font-weight: 500;
-    }
-    .stMetric .stMetricValue {
-        color: #ffffff !important;
-        font-size: 2.4rem !important;
-        font-weight: 700;
-    }
-
-    /* Виджеты */
-    .stButton button, .stSelectbox div, .stSlider div, .stFileUploader div {
-        background: rgba(255, 255, 255, 0.05) !important;
-        border: 1px solid rgba(255, 255, 255, 0.1) !important;
-        color: #f0f6fc !important;
-        border-radius: 12px !important;
-        padding: 8px 18px !important;
-        transition: all 0.2s ease !important;
-        backdrop-filter: blur(4px) !important;
-    }
-    .stButton button:hover {
-        background: rgba(255, 255, 255, 0.15) !important;
-        border-color: rgba(255, 255, 255, 0.25) !important;
-        transform: scale(1.02);
-    }
-    .stSlider div[data-baseweb="slider"] {
-        background: transparent !important;
-        border: none !important;
-    }
-    .stSlider div[data-baseweb="slider"] div {
-        background: transparent !important;
-        border: none !important;
-    }
-
-    /* Боковая панель */
-    .css-1d391kg {
-        background: rgba(10, 14, 26, 0.85) !important;
-        backdrop-filter: blur(10px) !important;
-        border-right: 1px solid rgba(255, 255, 255, 0.05) !important;
-    }
-
-    /* Таблицы */
-    .stDataFrame {
-        background: rgba(0, 0, 0, 0.2) !important;
-        border-radius: 16px !important;
-        padding: 8px !important;
-        border: none !important;
-    }
-    .stDataFrame table {
-        color: #e6edf3 !important;
-    }
-    .stDataFrame thead tr th {
-        background: rgba(255, 255, 255, 0.04) !important;
-        color: #58a6ff !important;
-    }
-
-    /* Скроллбар */
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); border-radius: 10px; }
-    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 10px; }
-    ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.3); }
-
-    /* Анимированный заголовок */
-    .title-glow {
-        font-size: 2.8rem !important;
-        font-weight: 800 !important;
-        background: linear-gradient(45deg, #58a6ff, #f0883e, #ff6b9d) !important;
-        background-size: 300% 300% !important;
-        -webkit-background-clip: text !important;
-        -webkit-text-fill-color: transparent !important;
-        animation: glowPulse 4s ease infinite alternate !important;
-        text-shadow: 0 0 30px rgba(88, 166, 255, 0.2) !important;
-        display: inline-block;
-        padding: 0 10px;
-    }
-    @keyframes glowPulse {
-        0% { background-position: 0% 50%; text-shadow: 0 0 20px rgba(88, 166, 255, 0.2); }
-        50% { text-shadow: 0 0 40px rgba(240, 136, 62, 0.4), 0 0 80px rgba(255, 107, 157, 0.2); }
-        100% { background-position: 100% 50%; text-shadow: 0 0 20px rgba(88, 166, 255, 0.2); }
-    }
-</style>
-""", unsafe_allow_html=True)
-
-# Добавляем HTML-контейнер с фигурами (он будет виден всегда)
-st.markdown("""
-<div class="bg-shapes">
-    <div></div>
-    <div></div>
-    <div></div>
-    <div></div>
-    <div></div>
-</div>
-""", unsafe_allow_html=True)
-
 # ---------- ЗАГОЛОВОК ----------
 st.markdown('<div class="title-glow">📊 Анализ неудовлетворённого спроса</div>', unsafe_allow_html=True)
+
+st.components.v1.html("""
+<div id="bg-animation" style="position:fixed; top:0; left:0; width:100%; height:100%; z-index:-1; overflow:hidden; pointer-events:none;">
+    <canvas id="canvas" style="width:100%; height:100%;"></canvas>
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+        window.addEventListener('resize', resize);
+        resize();
+        const circles = [];
+        for (let i = 0; i < 15; i++) {
+            circles.push({
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height,
+                r: 30 + Math.random() * 120,
+                dx: (Math.random() - 0.5) * 0.3,
+                dy: (Math.random() - 0.5) * 0.3,
+                color: `hsla(${Math.random() * 360}, 80%, 70%, 0.04)`
+            });
+        }
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            circles.forEach(c => {
+                c.x += c.dx;
+                c.y += c.dy;
+                if (c.x < 0 || c.x > canvas.width) c.dx *= -1;
+                if (c.y < 0 || c.y > canvas.height) c.dy *= -1;
+                ctx.beginPath();
+                ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2);
+                ctx.fillStyle = c.color;
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(255,255,255,0.02)';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            });
+            requestAnimationFrame(animate);
+        }
+        animate();
+    </script>
+</div>
+""", height=0)
 
 # ---------- ВСПОМОГАТЕЛЬНАЯ ПРОВЕРКА (чтобы убедиться, что CSS применился) ----------
 st.markdown('<p style="color: #58a6ff; font-size: 0.8rem; opacity:0.6;">✨ Дизайн с анимацией активен</p>', unsafe_allow_html=True)
