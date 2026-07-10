@@ -8,24 +8,29 @@ import numpy as np
 # ---------- НАСТРОЙКА СТРАНИЦЫ ----------
 st.set_page_config(page_title="Анализ неудовлетворённого спроса", layout="wide")
 
-# ---------- КАСТОМНЫЙ CSS (НОВЫЙ ДИЗАЙН) ----------
+# ---------- НОВЫЙ ДИЗАЙН С АНИМАЦИЕЙ ----------
 st.markdown("""
 <style>
-    /* Основной фон – тёмный градиент с анимацией */
-    .stApp {
-        background: linear-gradient(135deg, #0d1117, #161b22, #0d1117);
-        background-size: 400% 400%;
-        animation: gradientShift 15s ease infinite;
-        color: #e6edf3;
-        font-family: 'Segoe UI', sans-serif;
+    /* Базовый фон – анимированный градиент */
+    html, body, .stApp {
+        background: linear-gradient(-45deg, #0a0e1a, #1a1f3a, #2d1b3d, #0a2a4a) !important;
+        background-size: 400% 400% !important;
+        animation: gradientFlow 20s ease infinite !important;
+        min-height: 100vh !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        color: #e6edf3 !important;
+        font-family: 'Inter', 'Segoe UI', sans-serif !important;
     }
-    @keyframes gradientShift {
+    @keyframes gradientFlow {
         0% { background-position: 0% 50%; }
+        25% { background-position: 100% 0%; }
         50% { background-position: 100% 50%; }
+        75% { background-position: 0% 100%; }
         100% { background-position: 0% 50%; }
     }
 
-    /* Анимированные геометрические фигуры на фоне */
+    /* Анимированные фигуры на фоне */
     .bg-shapes {
         position: fixed;
         top: 0;
@@ -39,84 +44,91 @@ st.markdown("""
     .bg-shapes div {
         position: absolute;
         border-radius: 50%;
-        background: rgba(255, 255, 255, 0.02);
-        border: 1px solid rgba(255, 255, 255, 0.03);
-        animation: floatShape 30s infinite alternate ease-in-out;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        animation: floatShape 35s infinite alternate ease-in-out;
     }
     .bg-shapes div:nth-child(1) {
-        width: 300px; height: 300px; top: 5%; left: -5%;
-        animation-duration: 35s;
+        width: 400px; height: 400px; top: -10%; left: -10%;
+        animation-duration: 40s;
+        background: radial-gradient(circle, rgba(100, 150, 255, 0.08), transparent);
     }
     .bg-shapes div:nth-child(2) {
-        width: 200px; height: 200px; bottom: 10%; right: 5%;
-        animation-duration: 28s;
+        width: 250px; height: 250px; bottom: 5%; right: 5%;
+        animation-duration: 30s;
         animation-delay: -5s;
         border-radius: 30% 70% 50% 50% / 50% 40% 60% 50%;
+        background: radial-gradient(circle, rgba(255, 100, 200, 0.06), transparent);
     }
     .bg-shapes div:nth-child(3) {
-        width: 150px; height: 150px; top: 40%; left: 60%;
-        animation-duration: 40s;
+        width: 180px; height: 180px; top: 40%; left: 70%;
+        animation-duration: 45s;
         animation-delay: -10s;
         border-radius: 40% 60% 30% 70% / 50% 40% 60% 50%;
+        background: radial-gradient(circle, rgba(255, 200, 50, 0.05), transparent);
     }
     .bg-shapes div:nth-child(4) {
-        width: 100px; height: 100px; bottom: 30%; left: 20%;
+        width: 120px; height: 120px; bottom: 30%; left: 15%;
         animation-duration: 25s;
         animation-delay: -2s;
         border-radius: 60% 40% 50% 50% / 30% 60% 40% 70%;
+        background: radial-gradient(circle, rgba(0, 255, 200, 0.05), transparent);
     }
     .bg-shapes div:nth-child(5) {
-        width: 250px; height: 250px; top: 70%; left: 70%;
-        animation-duration: 45s;
+        width: 300px; height: 300px; top: 70%; left: 60%;
+        animation-duration: 50s;
         animation-delay: -8s;
         border-radius: 30% 70% 60% 40% / 50% 40% 60% 50%;
+        background: radial-gradient(circle, rgba(150, 100, 255, 0.06), transparent);
     }
     @keyframes floatShape {
-        0% { transform: translate(0, 0) rotate(0deg) scale(1); }
-        100% { transform: translate(80px, -60px) rotate(360deg) scale(1.2); }
+        0% { transform: translate(0, 0) rotate(0deg) scale(1); opacity: 0.5; }
+        100% { transform: translate(80px, -60px) rotate(360deg) scale(1.3); opacity: 1; }
     }
 
-    /* Контейнеры – без рамок, с лёгкой тенью и закруглением */
+    /* Контейнеры – с лёгким затемнением и скруглением */
     .main > div {
-        background: rgba(255, 255, 255, 0.04);
-        border-radius: 20px;
-        padding: 20px 25px;
-        margin: 16px 0;
-        border: 1px solid rgba(255, 255, 255, 0.06);
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-        backdrop-filter: blur(4px);
+        background: rgba(0, 0, 0, 0.25) !important;
+        border-radius: 24px !important;
+        padding: 20px 28px !important;
+        margin: 16px 0 !important;
+        border: 1px solid rgba(255, 255, 255, 0.05) !important;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5) !important;
+        backdrop-filter: blur(6px) !important;
+        -webkit-backdrop-filter: blur(6px) !important;
     }
 
-    /* Текст и заголовки – светлые */
+    /* Заголовки и текст */
     h1, h2, h3, .stMarkdown, .stDataFrame, .stMetric, .stSelectbox label, .stSlider label {
         color: #f0f6fc !important;
     }
     .stMetric label {
         color: #58a6ff !important;
         font-weight: 500;
-        letter-spacing: 0.5px;
+        letter-spacing: 0.3px;
     }
     .stMetric .stMetricValue {
         color: #ffffff !important;
-        font-size: 2.2rem !important;
+        font-size: 2.4rem !important;
         font-weight: 700;
     }
 
-    /* Виджеты – без лишних рамок, на прозрачном фоне */
+    /* Виджеты – прозрачные, с тонкой границей */
     .stButton button, .stSelectbox div, .stSlider div, .stFileUploader div {
-        background: rgba(255, 255, 255, 0.06) !important;
+        background: rgba(255, 255, 255, 0.05) !important;
         border: 1px solid rgba(255, 255, 255, 0.1) !important;
         color: #f0f6fc !important;
         border-radius: 12px !important;
         padding: 8px 18px !important;
-        transition: all 0.2s ease;
+        transition: all 0.2s ease !important;
+        backdrop-filter: blur(4px) !important;
     }
     .stButton button:hover {
         background: rgba(255, 255, 255, 0.15) !important;
-        border-color: rgba(255, 255, 255, 0.2) !important;
+        border-color: rgba(255, 255, 255, 0.25) !important;
         transform: scale(1.02);
     }
-    /* Убираем рамки вокруг слайдера */
+    /* Убираем лишние рамки вокруг слайдера */
     .stSlider div[data-baseweb="slider"] {
         background: transparent !important;
         border: none !important;
@@ -126,25 +138,25 @@ st.markdown("""
         border: none !important;
     }
 
-    /* Боковая панель – полупрозрачная, с затемнением */
+    /* Боковая панель */
     .css-1d391kg {
-        background: rgba(13, 17, 23, 0.8) !important;
-        backdrop-filter: blur(8px);
-        border-right: 1px solid rgba(255, 255, 255, 0.05);
+        background: rgba(10, 14, 26, 0.85) !important;
+        backdrop-filter: blur(10px) !important;
+        border-right: 1px solid rgba(255, 255, 255, 0.05) !important;
     }
 
     /* Таблицы */
     .stDataFrame {
         background: rgba(0, 0, 0, 0.2) !important;
-        border-radius: 16px;
-        padding: 8px;
-        border: none;
+        border-radius: 16px !important;
+        padding: 8px !important;
+        border: none !important;
     }
     .stDataFrame table {
         color: #e6edf3 !important;
     }
     .stDataFrame thead tr th {
-        background: rgba(255, 255, 255, 0.05) !important;
+        background: rgba(255, 255, 255, 0.04) !important;
         color: #58a6ff !important;
     }
 
@@ -156,21 +168,26 @@ st.markdown("""
 
     /* Анимированный заголовок */
     .title-glow {
-        font-size: 2.8rem;
-        font-weight: 800;
-        background: linear-gradient(45deg, #58a6ff, #f0883e);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        animation: pulseGlow 3s infinite alternate;
+        font-size: 2.8rem !important;
+        font-weight: 800 !important;
+        background: linear-gradient(45deg, #58a6ff, #f0883e, #ff6b9d) !important;
+        background-size: 300% 300% !important;
+        -webkit-background-clip: text !important;
+        -webkit-text-fill-color: transparent !important;
+        animation: glowPulse 4s ease infinite alternate !important;
+        text-shadow: 0 0 30px rgba(88, 166, 255, 0.2) !important;
+        display: inline-block;
+        padding: 0 10px;
     }
-    @keyframes pulseGlow {
-        0% { text-shadow: 0 0 10px rgba(88, 166, 255, 0.2); }
-        100% { text-shadow: 0 0 30px rgba(88, 166, 255, 0.6), 0 0 60px rgba(240, 136, 62, 0.3); }
+    @keyframes glowPulse {
+        0% { background-position: 0% 50%; text-shadow: 0 0 20px rgba(88, 166, 255, 0.2); }
+        50% { text-shadow: 0 0 40px rgba(240, 136, 62, 0.4), 0 0 80px rgba(255, 107, 157, 0.2); }
+        100% { background-position: 100% 50%; text-shadow: 0 0 20px rgba(88, 166, 255, 0.2); }
     }
 </style>
 """, unsafe_allow_html=True)
 
-# Добавляем HTML с фигурами
+# Добавляем HTML-контейнер для фигур
 st.markdown("""
 <div class="bg-shapes">
     <div></div>
@@ -181,13 +198,10 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# ---------- ЗАГОЛОВОК С АНИМАЦИЕЙ ----------
+# ---------- ЗАГОЛОВОК ----------
 st.markdown('<div class="title-glow">📊 Анализ неудовлетворённого спроса</div>', unsafe_allow_html=True)
 
-# ---------- ОСТАЛЬНОЙ КОД (без изменений) ----------
-# ... (весь код функций parse_excel, calculate_deficit и интерфейса)
-# Обратите внимание: везде заменяем use_container_width=True на width='stretch'
-
+# ---------- ФУНКЦИИ ПАРСИНГА И РАСЧЁТА ----------
 def parse_excel(file):
     df_raw = pd.read_excel(file, header=None, dtype=str)
     df_raw = df_raw.fillna('')
@@ -278,7 +292,7 @@ def calculate_deficit(df):
     }
     return df_result, metrics
 
-# ---------- ИНТЕРФЕЙС С ЗАМЕНОЙ use_container_width ----------
+# ---------- ИНТЕРФЕЙС ----------
 uploaded_file = st.file_uploader("📂 Загрузите Excel-файл", type=["xlsx"])
 
 if uploaded_file:
@@ -299,7 +313,7 @@ if uploaded_file:
         else:
             st.success("✅ Расчёт выполнен.")
 
-            # Фильтры
+            # ---- Фильтры ----
             st.sidebar.header("🔍 Фильтры")
             cities = sorted(df_deficit['city'].unique())
             products = sorted(df_deficit['product'].unique())
@@ -308,7 +322,7 @@ if uploaded_file:
             selected_product = st.sidebar.selectbox("Товар для детального графика", ["Все"] + products)
             top_n_heat = st.sidebar.slider("Количество товаров на тепловой карте", min_value=5, max_value=50, value=15)
 
-            # Метрики
+            # ---- Общие метрики ----
             total_def = metrics['total_deficit']
             total_days = df_deficit['day'].nunique()
             days_with_def = df_deficit[df_deficit['deficit'] > 0]['day'].nunique()
@@ -321,7 +335,7 @@ if uploaded_file:
             col3.metric("Товаров с дефицитом", f"{n_products}")
             col4.metric("Городов", f"{n_cities}")
 
-            # Графики (заменяем use_container_width=True на width='stretch')
+            # ---- ГРАФИК 1: Дефицит по городам ----
             st.subheader("🏙️ Дефицит по городам")
             fig_city = px.bar(metrics['by_city'], x='city', y='deficit',
                               title="Суммарный дефицит по городам (шт)",
@@ -329,6 +343,7 @@ if uploaded_file:
                               color='deficit', color_continuous_scale='Reds')
             st.plotly_chart(fig_city, width='stretch')
 
+            # ---- ГРАФИК 2: Дефицит по товарам (топ-10) ----
             st.subheader("📦 Дефицит по товарам (топ-10)")
             top_products = metrics['by_product'].nlargest(10, 'deficit')
             fig_prod = px.bar(top_products, x='deficit', y='product',
@@ -339,6 +354,7 @@ if uploaded_file:
             fig_prod.update_layout(yaxis={'categoryorder': 'total ascending'})
             st.plotly_chart(fig_prod, width='stretch')
 
+            # ---- ГРАФИК 3: Количество дней с дефицитом по товарам ----
             st.subheader("📅 Количество дней с дефицитом по товарам")
             days_def = metrics['days_with_deficit'].nlargest(15, 'days_with_deficit')
             fig_days = px.bar(days_def, x='days_with_deficit', y='product',
@@ -349,13 +365,17 @@ if uploaded_file:
             fig_days.update_layout(yaxis={'categoryorder': 'total ascending'})
             st.plotly_chart(fig_days, width='stretch')
 
+            # ---- ГРАФИК 4: Тепловая карта (товары × города) ----
             st.subheader("🔥 Тепловая карта дефицита (товары × города)")
             heat_data = df_deficit.groupby(['product', 'city'])['deficit'].sum().reset_index()
             top_products_heat = heat_data.groupby('product')['deficit'].sum().nlargest(top_n_heat).index
             heat_data_filtered = heat_data[heat_data['product'].isin(top_products_heat)]
+
             if not heat_data_filtered.empty:
                 pivot = heat_data_filtered.pivot(index='product', columns='city', values='deficit').fillna(0)
-                fig_heat = px.imshow(pivot, text_auto=True, aspect="auto",
+                fig_heat = px.imshow(pivot,
+                                     text_auto=True,
+                                     aspect="auto",
                                      color_continuous_scale='Reds',
                                      title=f"Дефицит по товарам (топ-{top_n_heat}) и городам (шт)")
                 fig_heat.update_layout(height=600)
@@ -363,9 +383,12 @@ if uploaded_file:
             else:
                 st.info("Недостаточно данных для тепловой карты.")
 
+            # ---- ГРАФИК 5: Дефицит по дням для выбранного города ----
             st.subheader("📆 Дефицит по товарам в выбранном городе (по дням)")
             city_for_daily = st.selectbox("Выберите город для отображения дефицита по дням", cities)
+
             df_city = df_deficit[df_deficit['city'] == city_for_daily]
+
             if not df_city.empty:
                 pivot_daily = df_city.pivot(index='product', columns='day', values='deficit').fillna(0)
                 products_with_deficit = pivot_daily.sum(axis=1)
@@ -376,25 +399,29 @@ if uploaded_file:
                 else:
                     st.warning(f"В городе {city_for_daily} нет дефицита ни по одному товару.")
                     pivot_daily = pd.DataFrame()
+
                 if not pivot_daily.empty:
                     pivot_daily['total'] = pivot_daily.sum(axis=1)
                     pivot_daily = pivot_daily.sort_values('total', ascending=False).drop(columns='total')
-                    fig_daily_heat = px.imshow(pivot_daily, text_auto=True, aspect="auto",
+                    fig_daily_heat = px.imshow(pivot_daily,
+                                               text_auto=True,
+                                               aspect="auto",
                                                color_continuous_scale='Reds',
                                                title=f"Дефицит (шт) по дням – город {city_for_daily}",
                                                labels={'product': 'Товар', 'day': 'День месяца', 'color': 'Дефицит (шт)'})
                     fig_daily_heat.update_layout(height=max(400, 30*len(pivot_daily)))
                     st.plotly_chart(fig_daily_heat, width='stretch')
+
                     non_zero = df_city[df_city['deficit'] > 0]
                     if not non_zero.empty:
                         st.subheader(f"📋 Дни с дефицитом в городе {city_for_daily}")
-                        st.dataframe(non_zero[['product', 'day', 'deficit']].sort_values(['product', 'day']),
-                                     width='stretch')
+                        st.dataframe(non_zero[['product', 'day', 'deficit']].sort_values(['product', 'day']))
                 else:
                     st.info("Нет данных для отображения тепловой карты по дням.")
             else:
                 st.warning(f"Нет данных для города {city_for_daily}.")
 
+            # ---- ГРАФИК 6: Детальный график для выбранного товара ----
             if selected_product != "Все":
                 st.subheader(f"📉 Детальный график: {selected_product}")
                 filtered = df_deficit[df_deficit['product'] == selected_product]
@@ -403,12 +430,14 @@ if uploaded_file:
                     city_label = f" в городе {selected_city}"
                 else:
                     city_label = " (все города)"
+
                 if not filtered.empty:
                     daily = filtered.groupby('day').agg({
                         'stock': 'sum',
                         'deficit': 'sum',
                         'sales': 'sum'
                     }).reset_index()
+
                     fig_det = go.Figure()
                     fig_det.add_trace(go.Scatter(x=daily['day'], y=daily['stock'],
                                                  mode='lines+markers', name='Остаток'))
@@ -419,10 +448,11 @@ if uploaded_file:
                     fig_det.update_layout(title=f"Остатки, продажи и дефицит – {selected_product}{city_label}",
                                           xaxis_title='День месяца', yaxis_title='Количество (шт)')
                     st.plotly_chart(fig_det, width='stretch')
-                    st.dataframe(daily, width='stretch')
+                    st.dataframe(daily)
                 else:
                     st.warning("Нет данных для выбранного товара и города.")
 
+            # ---- Таблица детализации ----
             st.subheader("📋 Детальная таблица дефицита по дням")
             detail = df_deficit.groupby(['city', 'product', 'day']).agg({
                 'sales': 'sum',
@@ -430,8 +460,9 @@ if uploaded_file:
                 'avg_demand': 'first',
                 'deficit': 'sum'
             }).reset_index()
-            st.dataframe(detail, width='stretch')
+            st.dataframe(detail)
 
+            # ---- Скачивание результата ----
             def to_excel(df):
                 output = BytesIO()
                 with pd.ExcelWriter(output, engine='openpyxl') as writer:
