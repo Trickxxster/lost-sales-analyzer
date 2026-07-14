@@ -7,47 +7,54 @@ import numpy as np
 import re
 
 st.set_page_config(page_title="Анализ неудовлетворённого спроса", layout="wide")
-
 st.title("📊 Анализ неудовлетворённого спроса")
 
-# --------------------- Цены (сопоставление) ---------------------
-def get_price(product_name):
+# --------------------- ПАРСИНГ ФАЙЛА С ЦЕНАМИ ---------------------
+def parse_prices(file):
     """
-    Возвращает цену товара на основе его названия.
-    Использует ключевые слова и регулярные выражения.
+    Парсит файл с ценами (Техника номенклатура 1.xlsx).
+    Возвращает словарь: (НаименованиеПолное, Характеристика) -> {город: цена}
     """
-    product_lower = product_name.lower()
-    
-    # Сначала ищем точные совпадения для чехлов
-    if 'eligant' in product_lower:
-        return 2490
-    if 'urban' in product_lower:  # Urban, Urban+
-        return 2990
-    if 'clair' in product_lower:
-        return 2990
-    
-    # Зарядные устройства
-    if 'balance' in product_lower:
-        return 3490
-    if 'pulse' in product_lower:
-        return 4490
-    
-    # Powerbank
-    if 'powerbank' in product_lower:
-        # Определяем ёмкость
-        if '10 000' in product_lower or '10000' in product_lower:
-            return 5990
-        elif '5 000' in product_lower or '5000' in product_lower:
-            return 4490
-        else:
-            # Если ёмкость не указана, возвращаем среднюю цену
-            return 5490
-    
-    # Если ничего не подошло – цена 0 (будет видно, что не задана)
-    return 0
+    df = pd.read_excel(file, header=0)
+    # Находим колонки с ценами: начинаются с "Розничная цена"
+    price_cols = [col for col in df.columns if col.startswith('Розничная цена')]
+    if not price_cols:
+        st.error("В файле цен не найдены колонки 'Розничная цена ...'")
+        return None
 
-# --------------------- Парсинг файла ---------------------
-def parse_excel(file):
+    # Извлекаем названия городов из колонок (убираем префикс)
+    city_map = {}
+    for col in price_cols:
+        city = col.replace('Розничная цена', '').strip()
+        city_map[city] = col
+
+    price_dict = {}
+    for _, row in df.iterrows():
+        product = str(row['НаименованиеПолное']).strip()
+        char = str(row['Характеристика']).strip()
+        # Пропускаем пустые строки или строки-заголовки
+        if not product or product in ['НаименованиеПолное', 'Техника', 'Ноутбуки', 'Планшеты', 'Прочее', 'Смартаксы', 'Колонки', 'Наушники', 'Телефоны', 'Часы', 'Samsung(для акции комбо)', 'Iphone(для акции комбо)']:
+            continue
+
+        key = (product, char)
+        prices = {}
+        for city, col in city_map.items():
+            val = row[col]
+            # Пропускаем пустые значения
+            if pd.isna(val) or val == '':
+                continue
+            try:
+                price = float(val)
+                prices[city] = price
+            except:
+                continue
+        if prices:
+            price_dict[key] = prices
+
+    return price_dict
+
+# --------------------- ПАРСИНГ ОСНОВНОГО ФАЙЛА (с использованием цен) ---------------------
+def parse_excel(file, price_dict=None):
     df_raw = pd.read_excel(file, header=None, dtype=str)
     df_raw = df_raw.fillna('')
     start_indices = df_raw[df_raw[0].str.contains('Номенклатура', na=False)].index.tolist()
@@ -56,6 +63,7 @@ def parse_excel(file):
         return None
     end_indices = start_indices[1:] + [len(df_raw)]
     records = []
+
     for day_idx, (start, end) in enumerate(zip(start_indices, end_indices), start=1):
         header_row = df_raw.iloc[start]
         cities = {}
@@ -63,16 +71,29 @@ def parse_excel(file):
             val_str = str(val).strip()
             if 'LikeStore' in val_str or 'Like' in val_str:
                 cities[val_str] = col_idx
+
         if not cities:
             continue
+
         data_rows = df_raw.iloc[start+2:end]
         data_rows = data_rows[~data_rows[0].str.contains('Итого', na=False)]
+
         for _, row in data_rows.iterrows():
             product_name = str(row[0]).strip()
             product_char = str(row[1]).strip()
             product = f"{product_name} | {product_char}" if product_char else product_name
-            # Определяем цену для товара
-            price = get_price(product)
+
+            # Определяем цену
+            price = 0
+            if price_dict is not None:
+                # Ищем в словаре по (product_name, product_char)
+                key = (product_name, product_char)
+                if key in price_dict:
+                    prices_by_city = price_dict[key]
+                    # Будем позже присваивать цену для каждого города
+                else:
+                    prices_by_city = {}
+
             for city, col_start in cities.items():
                 if col_start + 9 >= len(row):
                     continue
@@ -86,24 +107,43 @@ def parse_excel(file):
                     stock = float(stock_val) if stock_val not in ['', None] else 0.0
                 except:
                     stock = 0.0
+
+                # Получаем цену для конкретного города
+                price_city = 0
+                if price_dict is not None:
+                    # Очищаем название города от суффиксов
+                    city_clean = re.sub(r'(LikeStore|Like38|Like|Store)', '', city).strip()
+                    if key in price_dict and city_clean in price_dict[key]:
+                        price_city = price_dict[key][city_clean]
+                    else:
+                        # Если нет точного совпадения, пытаемся найти частичное совпадение
+                        for p_city in price_dict.get(key, {}):
+                            if city_clean in p_city or p_city in city_clean:
+                                price_city = price_dict[key][p_city]
+                                break
+
                 records.append({
                     'day': day_idx,
                     'city': city,
                     'product': product,
+                    'product_name': product_name,
+                    'product_char': product_char,
                     'sales': sales,
                     'stock': stock,
-                    'price': price
+                    'price': price_city
                 })
+
     if not records:
         st.error("Не удалось извлечь данные. Проверьте структуру файла.")
         return None
+
     df = pd.DataFrame(records)
     df['sales'] = df['sales'].astype(float)
     df['stock'] = df['stock'].astype(float)
     df['price'] = df['price'].astype(float)
     return df
 
-# --------------------- Расчёт дефицита ---------------------
+# --------------------- РАСЧЁТ ДЕФИЦИТА ---------------------
 def calculate_deficit(df):
     results = []
     for (city, product), group in df.groupby(['city', 'product']):
@@ -113,8 +153,7 @@ def calculate_deficit(df):
         avg_demand = available['sales'].mean()
         if avg_demand <= 0:
             continue
-        # Берём цену из первой записи (она должна быть одинаковой для товара)
-        price = group.iloc[0]['price']
+        price = group.iloc[0]['price']  # цена должна быть одинаковой для товара в городе
         for _, row in group.iterrows():
             day = row['day']
             stock = row['stock']
@@ -138,7 +177,6 @@ def calculate_deficit(df):
     total_lost_revenue = df_result['lost_revenue'].sum()
     by_product = df_result.groupby('product')['deficit'].sum().reset_index()
     by_city = df_result.groupby('city')['deficit'].sum().reset_index()
-    # Добавим упущенную прибыль по товарам и городам для дополнительных графиков
     lost_by_product = df_result.groupby('product')['lost_revenue'].sum().reset_index()
     lost_by_city = df_result.groupby('city')['lost_revenue'].sum().reset_index()
     days_with_deficit = df_result[df_result['deficit'] > 0].groupby('product')['day'].nunique().reset_index()
@@ -154,12 +192,27 @@ def calculate_deficit(df):
     }
     return df_result, metrics
 
-# --------------------- Интерфейс ---------------------
-uploaded_file = st.file_uploader("📂 Загрузите Excel-файл", type=["xlsx"])
+# --------------------- ИНТЕРФЕЙС STREAMLIT ---------------------
+st.sidebar.header("📂 Загрузка данных")
 
-if uploaded_file:
-    with st.spinner("Парсинг файла..."):
-        df_data = parse_excel(uploaded_file)
+uploaded_main = st.sidebar.file_uploader("Загрузите основной файл (продажи/остатки)", type=["xlsx"])
+uploaded_price = st.sidebar.file_uploader("Загрузите файл с розничными ценами (опционально)", type=["xlsx"])
+
+if uploaded_main:
+    # Если загружен файл с ценами – парсим его
+    price_dict = None
+    if uploaded_price:
+        with st.spinner("Парсинг файла с ценами..."):
+            price_dict = parse_prices(uploaded_price)
+        if price_dict is not None:
+            st.sidebar.success("✅ Файл с ценами загружен")
+        else:
+            st.sidebar.warning("⚠️ Не удалось распарсить цены, будет использована цена 0")
+    else:
+        st.sidebar.info("ℹ️ Файл с ценами не загружен – упущенная прибыль будет равна 0")
+
+    with st.spinner("Парсинг основного файла..."):
+        df_data = parse_excel(uploaded_main, price_dict)
 
     if df_data is not None:
         st.success(f"✅ Данные загружены. {len(df_data)} записей, дни: {df_data['day'].min()} – {df_data['day'].max()}")
@@ -184,7 +237,7 @@ if uploaded_file:
             selected_product = st.sidebar.selectbox("Товар для детального графика", ["Все"] + products)
             top_n_heat = st.sidebar.slider("Количество товаров на тепловой карте", min_value=5, max_value=50, value=15)
 
-            # ---- Общие метрики (с упущенной прибылью) ----
+            # ---- Общие метрики ----
             total_def = metrics['total_deficit']
             total_lost = metrics['total_lost_revenue']
             total_days = df_deficit['day'].nunique()
@@ -208,7 +261,6 @@ if uploaded_file:
             fig_city.update_layout(template='simple_white')
             st.plotly_chart(fig_city, width='stretch')
 
-            # ---- Дополнительный график: Упущенная прибыль по городам ----
             st.subheader("💰 Упущенная прибыль по городам")
             fig_lost_city = px.bar(metrics['lost_by_city'], x='city', y='lost_revenue',
                                    title="Упущенная прибыль по городам (руб.)",
@@ -337,6 +389,6 @@ if uploaded_file:
             )
 
     else:
-        st.error("Не удалось обработать файл. Проверьте формат.")
+        st.error("Не удалось обработать основной файл. Проверьте формат.")
 else:
-    st.info("👈 Загрузите Excel-файл для начала анализа.")
+    st.info("👈 Загрузите основной файл (продажи/остатки) для начала анализа. Файл с ценами – опционально.")
