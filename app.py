@@ -6,19 +6,19 @@ from io import BytesIO
 import numpy as np
 import re
 
-st.set_page_config(page_title="РђРЅР°Р»РёР· РЅРµСѓРґРѕРІР»РµС‚РІРѕСЂС‘РЅРЅРѕРіРѕ СЃРїСЂРѕСЃР°", layout="wide")
+st.set_page_config(page_title="Анализ неудовлетворённого спроса", layout="wide")
 
-st.title("рџ“Љ РђРЅР°Р»РёР· РЅРµСѓРґРѕРІР»РµС‚РІРѕСЂС‘РЅРЅРѕРіРѕ СЃРїСЂРѕСЃР°")
+st.title("📊 Анализ неудовлетворённого спроса")
 
-# --------------------- Р¦РµРЅС‹ (СЃРѕРїРѕСЃС‚Р°РІР»РµРЅРёРµ) ---------------------
+# --------------------- Цены (сопоставление) ---------------------
 def get_price(product_name):
     """
-    Р’РѕР·РІСЂР°С‰Р°РµС‚ С†РµРЅСѓ С‚РѕРІР°СЂР° РЅР° РѕСЃРЅРѕРІРµ РµРіРѕ РЅР°Р·РІР°РЅРёСЏ.
-    РСЃРїРѕР»СЊР·СѓРµС‚ РєР»СЋС‡РµРІС‹Рµ СЃР»РѕРІР° Рё СЂРµРіСѓР»СЏСЂРЅС‹Рµ РІС‹СЂР°Р¶РµРЅРёСЏ.
+    Возвращает цену товара на основе его названия.
+    Использует ключевые слова и регулярные выражения.
     """
     product_lower = product_name.lower()
     
-    # РЎРЅР°С‡Р°Р»Р° РёС‰РµРј С‚РѕС‡РЅС‹Рµ СЃРѕРІРїР°РґРµРЅРёСЏ РґР»СЏ С‡РµС…Р»РѕРІ
+    # Сначала ищем точные совпадения для чехлов
     if 'eligant' in product_lower:
         return 2490
     if 'urban' in product_lower:  # Urban, Urban+
@@ -26,7 +26,7 @@ def get_price(product_name):
     if 'clair' in product_lower:
         return 2990
     
-    # Р—Р°СЂСЏРґРЅС‹Рµ СѓСЃС‚СЂРѕР№СЃС‚РІР°
+    # Зарядные устройства
     if 'balance' in product_lower:
         return 3490
     if 'pulse' in product_lower:
@@ -34,25 +34,25 @@ def get_price(product_name):
     
     # Powerbank
     if 'powerbank' in product_lower:
-        # РћРїСЂРµРґРµР»СЏРµРј С‘РјРєРѕСЃС‚СЊ
+        # Определяем ёмкость
         if '10 000' in product_lower or '10000' in product_lower:
             return 5990
         elif '5 000' in product_lower or '5000' in product_lower:
             return 4490
         else:
-            # Р•СЃР»Рё С‘РјРєРѕСЃС‚СЊ РЅРµ СѓРєР°Р·Р°РЅР°, РІРѕР·РІСЂР°С‰Р°РµРј СЃСЂРµРґРЅСЋСЋ С†РµРЅСѓ
+            # Если ёмкость не указана, возвращаем среднюю цену
             return 5490
     
-    # Р•СЃР»Рё РЅРёС‡РµРіРѕ РЅРµ РїРѕРґРѕС€Р»Рѕ вЂ“ С†РµРЅР° 0 (Р±СѓРґРµС‚ РІРёРґРЅРѕ, С‡С‚Рѕ РЅРµ Р·Р°РґР°РЅР°)
+    # Если ничего не подошло – цена 0 (будет видно, что не задана)
     return 0
 
-# --------------------- РџР°СЂСЃРёРЅРі С„Р°Р№Р»Р° ---------------------
+# --------------------- Парсинг файла ---------------------
 def parse_excel(file):
     df_raw = pd.read_excel(file, header=None, dtype=str)
     df_raw = df_raw.fillna('')
-    start_indices = df_raw[df_raw[0].str.contains('РќРѕРјРµРЅРєР»Р°С‚СѓСЂР°', na=False)].index.tolist()
+    start_indices = df_raw[df_raw[0].str.contains('Номенклатура', na=False)].index.tolist()
     if not start_indices:
-        st.error("РќРµ РЅР°Р№РґРµРЅС‹ Р±Р»РѕРєРё СЃ 'РќРѕРјРµРЅРєР»Р°С‚СѓСЂР°'. РџСЂРѕРІРµСЂСЊС‚Рµ СЃС‚СЂСѓРєС‚СѓСЂСѓ С„Р°Р№Р»Р°.")
+        st.error("Не найдены блоки с 'Номенклатура'. Проверьте структуру файла.")
         return None
     end_indices = start_indices[1:] + [len(df_raw)]
     records = []
@@ -66,12 +66,12 @@ def parse_excel(file):
         if not cities:
             continue
         data_rows = df_raw.iloc[start+2:end]
-        data_rows = data_rows[~data_rows[0].str.contains('РС‚РѕРіРѕ', na=False)]
+        data_rows = data_rows[~data_rows[0].str.contains('Итого', na=False)]
         for _, row in data_rows.iterrows():
             product_name = str(row[0]).strip()
             product_char = str(row[1]).strip()
             product = f"{product_name} | {product_char}" if product_char else product_name
-            # РћРїСЂРµРґРµР»СЏРµРј С†РµРЅСѓ РґР»СЏ С‚РѕРІР°СЂР°
+            # Определяем цену для товара
             price = get_price(product)
             for city, col_start in cities.items():
                 if col_start + 9 >= len(row):
@@ -95,7 +95,7 @@ def parse_excel(file):
                     'price': price
                 })
     if not records:
-        st.error("РќРµ СѓРґР°Р»РѕСЃСЊ РёР·РІР»РµС‡СЊ РґР°РЅРЅС‹Рµ. РџСЂРѕРІРµСЂСЊС‚Рµ СЃС‚СЂСѓРєС‚СѓСЂСѓ С„Р°Р№Р»Р°.")
+        st.error("Не удалось извлечь данные. Проверьте структуру файла.")
         return None
     df = pd.DataFrame(records)
     df['sales'] = df['sales'].astype(float)
@@ -103,7 +103,7 @@ def parse_excel(file):
     df['price'] = df['price'].astype(float)
     return df
 
-# --------------------- Р Р°СЃС‡С‘С‚ РґРµС„РёС†РёС‚Р° ---------------------
+# --------------------- Расчёт дефицита ---------------------
 def calculate_deficit(df):
     results = []
     for (city, product), group in df.groupby(['city', 'product']):
@@ -113,7 +113,7 @@ def calculate_deficit(df):
         avg_demand = available['sales'].mean()
         if avg_demand <= 0:
             continue
-        # Р‘РµСЂС‘Рј С†РµРЅСѓ РёР· РїРµСЂРІРѕР№ Р·Р°РїРёСЃРё (РѕРЅР° РґРѕР»Р¶РЅР° Р±С‹С‚СЊ РѕРґРёРЅР°РєРѕРІРѕР№ РґР»СЏ С‚РѕРІР°СЂР°)
+        # Берём цену из первой записи (она должна быть одинаковой для товара)
         price = group.iloc[0]['price']
         for _, row in group.iterrows():
             day = row['day']
@@ -138,7 +138,7 @@ def calculate_deficit(df):
     total_lost_revenue = df_result['lost_revenue'].sum()
     by_product = df_result.groupby('product')['deficit'].sum().reset_index()
     by_city = df_result.groupby('city')['deficit'].sum().reset_index()
-    # Р”РѕР±Р°РІРёРј СѓРїСѓС‰РµРЅРЅСѓСЋ РїСЂРёР±С‹Р»СЊ РїРѕ С‚РѕРІР°СЂР°Рј Рё РіРѕСЂРѕРґР°Рј РґР»СЏ РґРѕРїРѕР»РЅРёС‚РµР»СЊРЅС‹С… РіСЂР°С„РёРєРѕРІ
+    # Добавим упущенную прибыль по товарам и городам для дополнительных графиков
     lost_by_product = df_result.groupby('product')['lost_revenue'].sum().reset_index()
     lost_by_city = df_result.groupby('city')['lost_revenue'].sum().reset_index()
     days_with_deficit = df_result[df_result['deficit'] > 0].groupby('product')['day'].nunique().reset_index()
@@ -154,37 +154,37 @@ def calculate_deficit(df):
     }
     return df_result, metrics
 
-# --------------------- РРЅС‚РµСЂС„РµР№СЃ ---------------------
-uploaded_file = st.file_uploader("рџ“‚ Р—Р°РіСЂСѓР·РёС‚Рµ Excel-С„Р°Р№Р»", type=["xlsx"])
+# --------------------- Интерфейс ---------------------
+uploaded_file = st.file_uploader("📂 Загрузите Excel-файл", type=["xlsx"])
 
 if uploaded_file:
-    with st.spinner("РџР°СЂСЃРёРЅРі С„Р°Р№Р»Р°..."):
+    with st.spinner("Парсинг файла..."):
         df_data = parse_excel(uploaded_file)
 
     if df_data is not None:
-        st.success(f"вњ… Р”Р°РЅРЅС‹Рµ Р·Р°РіСЂСѓР¶РµРЅС‹. {len(df_data)} Р·Р°РїРёСЃРµР№, РґРЅРё: {df_data['day'].min()} вЂ“ {df_data['day'].max()}")
+        st.success(f"✅ Данные загружены. {len(df_data)} записей, дни: {df_data['day'].min()} – {df_data['day'].max()}")
 
-        with st.expander("рџ“‹ РџСЂРµРґРїСЂРѕСЃРјРѕС‚СЂ РґР°РЅРЅС‹С…"):
+        with st.expander("📋 Предпросмотр данных"):
             st.dataframe(df_data.head(100))
 
-        with st.spinner("Р Р°СЃС‡С‘С‚ РґРµС„РёС†РёС‚Р°..."):
+        with st.spinner("Расчёт дефицита..."):
             df_deficit, metrics = calculate_deficit(df_data)
 
         if df_deficit is None:
-            st.error("РќРµ СѓРґР°Р»РѕСЃСЊ СЂР°СЃСЃС‡РёС‚Р°С‚СЊ РґРµС„РёС†РёС‚: РЅРµС‚ РґРЅРµР№ СЃ РЅР°Р»РёС‡РёРµРј С‚РѕРІР°СЂР°.")
+            st.error("Не удалось рассчитать дефицит: нет дней с наличием товара.")
         else:
-            st.success("вњ… Р Р°СЃС‡С‘С‚ РІС‹РїРѕР»РЅРµРЅ.")
+            st.success("✅ Расчёт выполнен.")
 
-            # ---- Р¤РёР»СЊС‚СЂС‹ ----
-            st.sidebar.header("рџ”Ќ Р¤РёР»СЊС‚СЂС‹")
+            # ---- Фильтры ----
+            st.sidebar.header("🔍 Фильтры")
             cities = sorted(df_deficit['city'].unique())
             products = sorted(df_deficit['product'].unique())
 
-            selected_city = st.sidebar.selectbox("Р“РѕСЂРѕРґ РґР»СЏ РґРµС‚Р°Р»СЊРЅРѕРіРѕ Р°РЅР°Р»РёР·Р°", ["Р’СЃРµ"] + cities)
-            selected_product = st.sidebar.selectbox("РўРѕРІР°СЂ РґР»СЏ РґРµС‚Р°Р»СЊРЅРѕРіРѕ РіСЂР°С„РёРєР°", ["Р’СЃРµ"] + products)
-            top_n_heat = st.sidebar.slider("РљРѕР»РёС‡РµСЃС‚РІРѕ С‚РѕРІР°СЂРѕРІ РЅР° С‚РµРїР»РѕРІРѕР№ РєР°СЂС‚Рµ", min_value=5, max_value=50, value=15)
+            selected_city = st.sidebar.selectbox("Город для детального анализа", ["Все"] + cities)
+            selected_product = st.sidebar.selectbox("Товар для детального графика", ["Все"] + products)
+            top_n_heat = st.sidebar.slider("Количество товаров на тепловой карте", min_value=5, max_value=50, value=15)
 
-            # ---- РћР±С‰РёРµ РјРµС‚СЂРёРєРё (СЃ СѓРїСѓС‰РµРЅРЅРѕР№ РїСЂРёР±С‹Р»СЊСЋ) ----
+            # ---- Общие метрики (с упущенной прибылью) ----
             total_def = metrics['total_deficit']
             total_lost = metrics['total_lost_revenue']
             total_days = df_deficit['day'].nunique()
@@ -193,51 +193,51 @@ if uploaded_file:
             n_cities = df_deficit['city'].nunique()
 
             col1, col2, col3, col4, col5 = st.columns(5)
-            col1.metric("РћР±С‰РёР№ РґРµС„РёС†РёС‚ (С€С‚)", f"{total_def:,.0f}")
-            col2.metric("РЈРїСѓС‰РµРЅРЅР°СЏ РїСЂРёР±С‹Р»СЊ (СЂСѓР±.)", f"{total_lost:,.2f}")
-            col3.metric("Р”РЅРµР№ СЃ РґРµС„РёС†РёС‚РѕРј", f"{days_with_def} РёР· {total_days}")
-            col4.metric("РўРѕРІР°СЂРѕРІ СЃ РґРµС„РёС†РёС‚РѕРј", f"{n_products}")
-            col5.metric("Р“РѕСЂРѕРґРѕРІ", f"{n_cities}")
+            col1.metric("Общий дефицит (шт)", f"{total_def:,.0f}")
+            col2.metric("Упущенная прибыль (руб.)", f"{total_lost:,.2f}")
+            col3.metric("Дней с дефицитом", f"{days_with_def} из {total_days}")
+            col4.metric("Товаров с дефицитом", f"{n_products}")
+            col5.metric("Городов", f"{n_cities}")
 
-            # ---- Р“Р РђР¤РРљР (С‚РµРјР° simple_white) ----
-            st.subheader("рџЏ™пёЏ Р”РµС„РёС†РёС‚ РїРѕ РіРѕСЂРѕРґР°Рј")
+            # ---- ГРАФИКИ (тема simple_white) ----
+            st.subheader("🏙️ Дефицит по городам")
             fig_city = px.bar(metrics['by_city'], x='city', y='deficit',
-                              title="РЎСѓРјРјР°СЂРЅС‹Р№ РґРµС„РёС†РёС‚ РїРѕ РіРѕСЂРѕРґР°Рј (С€С‚)",
-                              labels={'city': 'Р“РѕСЂРѕРґ', 'deficit': 'Р”РµС„РёС†РёС‚ (С€С‚)'},
+                              title="Суммарный дефицит по городам (шт)",
+                              labels={'city': 'Город', 'deficit': 'Дефицит (шт)'},
                               color='deficit', color_continuous_scale='Reds')
             fig_city.update_layout(template='simple_white')
             st.plotly_chart(fig_city, width='stretch')
 
-            # ---- Р”РѕРїРѕР»РЅРёС‚РµР»СЊРЅС‹Р№ РіСЂР°С„РёРє: РЈРїСѓС‰РµРЅРЅР°СЏ РїСЂРёР±С‹Р»СЊ РїРѕ РіРѕСЂРѕРґР°Рј ----
-            st.subheader("рџ’° РЈРїСѓС‰РµРЅРЅР°СЏ РїСЂРёР±С‹Р»СЊ РїРѕ РіРѕСЂРѕРґР°Рј")
+            # ---- Дополнительный график: Упущенная прибыль по городам ----
+            st.subheader("💰 Упущенная прибыль по городам")
             fig_lost_city = px.bar(metrics['lost_by_city'], x='city', y='lost_revenue',
-                                   title="РЈРїСѓС‰РµРЅРЅР°СЏ РїСЂРёР±С‹Р»СЊ РїРѕ РіРѕСЂРѕРґР°Рј (СЂСѓР±.)",
-                                   labels={'city': 'Р“РѕСЂРѕРґ', 'lost_revenue': 'РЈРїСѓС‰РµРЅРЅР°СЏ РїСЂРёР±С‹Р»СЊ (СЂСѓР±.)'},
+                                   title="Упущенная прибыль по городам (руб.)",
+                                   labels={'city': 'Город', 'lost_revenue': 'Упущенная прибыль (руб.)'},
                                    color='lost_revenue', color_continuous_scale='Reds')
             fig_lost_city.update_layout(template='simple_white')
             st.plotly_chart(fig_lost_city, width='stretch')
 
-            st.subheader("рџ“¦ Р”РµС„РёС†РёС‚ РїРѕ С‚РѕРІР°СЂР°Рј (С‚РѕРї-10)")
+            st.subheader("📦 Дефицит по товарам (топ-10)")
             top_products = metrics['by_product'].nlargest(10, 'deficit')
             fig_prod = px.bar(top_products, x='deficit', y='product',
                               orientation='h',
-                              title="РўРѕРї-10 С‚РѕРІР°СЂРѕРІ РїРѕ РґРµС„РёС†РёС‚Сѓ (С€С‚)",
-                              labels={'deficit': 'Р”РµС„РёС†РёС‚ (С€С‚)', 'product': 'РўРѕРІР°СЂ'},
+                              title="Топ-10 товаров по дефициту (шт)",
+                              labels={'deficit': 'Дефицит (шт)', 'product': 'Товар'},
                               color='deficit', color_continuous_scale='Reds')
             fig_prod.update_layout(yaxis={'categoryorder': 'total ascending'}, template='simple_white')
             st.plotly_chart(fig_prod, width='stretch')
 
-            st.subheader("рџ“… РљРѕР»РёС‡РµСЃС‚РІРѕ РґРЅРµР№ СЃ РґРµС„РёС†РёС‚РѕРј РїРѕ С‚РѕРІР°СЂР°Рј")
+            st.subheader("📅 Количество дней с дефицитом по товарам")
             days_def = metrics['days_with_deficit'].nlargest(15, 'days_with_deficit')
             fig_days = px.bar(days_def, x='days_with_deficit', y='product',
                               orientation='h',
-                              title="РўРѕРї-15 С‚РѕРІР°СЂРѕРІ РїРѕ РєРѕР»РёС‡РµСЃС‚РІСѓ РґРЅРµР№ СЃ РґРµС„РёС†РёС‚РѕРј",
-                              labels={'days_with_deficit': 'Р”РЅРµР№ СЃ РґРµС„РёС†РёС‚РѕРј', 'product': 'РўРѕРІР°СЂ'},
+                              title="Топ-15 товаров по количеству дней с дефицитом",
+                              labels={'days_with_deficit': 'Дней с дефицитом', 'product': 'Товар'},
                               color='days_with_deficit', color_continuous_scale='Oranges')
             fig_days.update_layout(yaxis={'categoryorder': 'total ascending'}, template='simple_white')
             st.plotly_chart(fig_days, width='stretch')
 
-            st.subheader("рџ”Ґ РўРµРїР»РѕРІР°СЏ РєР°СЂС‚Р° РґРµС„РёС†РёС‚Р° (С‚РѕРІР°СЂС‹ Г— РіРѕСЂРѕРґР°)")
+            st.subheader("🔥 Тепловая карта дефицита (товары × города)")
             heat_data = df_deficit.groupby(['product', 'city'])['deficit'].sum().reset_index()
             top_products_heat = heat_data.groupby('product')['deficit'].sum().nlargest(top_n_heat).index
             heat_data_filtered = heat_data[heat_data['product'].isin(top_products_heat)]
@@ -245,14 +245,14 @@ if uploaded_file:
                 pivot = heat_data_filtered.pivot(index='product', columns='city', values='deficit').fillna(0)
                 fig_heat = px.imshow(pivot, text_auto=True, aspect="auto",
                                      color_continuous_scale='Reds',
-                                     title=f"Р”РµС„РёС†РёС‚ РїРѕ С‚РѕРІР°СЂР°Рј (С‚РѕРї-{top_n_heat}) Рё РіРѕСЂРѕРґР°Рј (С€С‚)")
+                                     title=f"Дефицит по товарам (топ-{top_n_heat}) и городам (шт)")
                 fig_heat.update_layout(height=600, template='simple_white')
                 st.plotly_chart(fig_heat, width='stretch')
             else:
-                st.info("РќРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ РґР°РЅРЅС‹С… РґР»СЏ С‚РµРїР»РѕРІРѕР№ РєР°СЂС‚С‹.")
+                st.info("Недостаточно данных для тепловой карты.")
 
-            st.subheader("рџ“† Р”РµС„РёС†РёС‚ РїРѕ С‚РѕРІР°СЂР°Рј РІ РІС‹Р±СЂР°РЅРЅРѕРј РіРѕСЂРѕРґРµ (РїРѕ РґРЅСЏРј)")
-            city_for_daily = st.selectbox("Р’С‹Р±РµСЂРёС‚Рµ РіРѕСЂРѕРґ РґР»СЏ РѕС‚РѕР±СЂР°Р¶РµРЅРёСЏ РґРµС„РёС†РёС‚Р° РїРѕ РґРЅСЏРј", cities)
+            st.subheader("📆 Дефицит по товарам в выбранном городе (по дням)")
+            city_for_daily = st.selectbox("Выберите город для отображения дефицита по дням", cities)
             df_city = df_deficit[df_deficit['city'] == city_for_daily]
             if not df_city.empty:
                 pivot_daily = df_city.pivot(index='product', columns='day', values='deficit').fillna(0)
@@ -262,34 +262,34 @@ if uploaded_file:
                     top_products_daily = products_with_deficit.nlargest(min(30, len(products_with_deficit))).index
                     pivot_daily = pivot_daily.loc[top_products_daily]
                 else:
-                    st.warning(f"Р’ РіРѕСЂРѕРґРµ {city_for_daily} РЅРµС‚ РґРµС„РёС†РёС‚Р° РЅРё РїРѕ РѕРґРЅРѕРјСѓ С‚РѕРІР°СЂСѓ.")
+                    st.warning(f"В городе {city_for_daily} нет дефицита ни по одному товару.")
                     pivot_daily = pd.DataFrame()
                 if not pivot_daily.empty:
                     pivot_daily['total'] = pivot_daily.sum(axis=1)
                     pivot_daily = pivot_daily.sort_values('total', ascending=False).drop(columns='total')
                     fig_daily_heat = px.imshow(pivot_daily, text_auto=True, aspect="auto",
                                                color_continuous_scale='Reds',
-                                               title=f"Р”РµС„РёС†РёС‚ (С€С‚) РїРѕ РґРЅСЏРј вЂ“ РіРѕСЂРѕРґ {city_for_daily}",
-                                               labels={'product': 'РўРѕРІР°СЂ', 'day': 'Р”РµРЅСЊ РјРµСЃСЏС†Р°', 'color': 'Р”РµС„РёС†РёС‚ (С€С‚)'})
+                                               title=f"Дефицит (шт) по дням – город {city_for_daily}",
+                                               labels={'product': 'Товар', 'day': 'День месяца', 'color': 'Дефицит (шт)'})
                     fig_daily_heat.update_layout(height=max(400, 30*len(pivot_daily)), template='simple_white')
                     st.plotly_chart(fig_daily_heat, width='stretch')
                     non_zero = df_city[df_city['deficit'] > 0]
                     if not non_zero.empty:
-                        st.subheader(f"рџ“‹ Р”РЅРё СЃ РґРµС„РёС†РёС‚РѕРј РІ РіРѕСЂРѕРґРµ {city_for_daily}")
+                        st.subheader(f"📋 Дни с дефицитом в городе {city_for_daily}")
                         st.dataframe(non_zero[['product', 'day', 'deficit']].sort_values(['product', 'day']))
                 else:
-                    st.info("РќРµС‚ РґР°РЅРЅС‹С… РґР»СЏ РѕС‚РѕР±СЂР°Р¶РµРЅРёСЏ С‚РµРїР»РѕРІРѕР№ РєР°СЂС‚С‹ РїРѕ РґРЅСЏРј.")
+                    st.info("Нет данных для отображения тепловой карты по дням.")
             else:
-                st.warning(f"РќРµС‚ РґР°РЅРЅС‹С… РґР»СЏ РіРѕСЂРѕРґР° {city_for_daily}.")
+                st.warning(f"Нет данных для города {city_for_daily}.")
 
-            if selected_product != "Р’СЃРµ":
-                st.subheader(f"рџ“‰ Р”РµС‚Р°Р»СЊРЅС‹Р№ РіСЂР°С„РёРє: {selected_product}")
+            if selected_product != "Все":
+                st.subheader(f"📉 Детальный график: {selected_product}")
                 filtered = df_deficit[df_deficit['product'] == selected_product]
-                if selected_city != "Р’СЃРµ":
+                if selected_city != "Все":
                     filtered = filtered[filtered['city'] == selected_city]
-                    city_label = f" РІ РіРѕСЂРѕРґРµ {selected_city}"
+                    city_label = f" в городе {selected_city}"
                 else:
-                    city_label = " (РІСЃРµ РіРѕСЂРѕРґР°)"
+                    city_label = " (все города)"
                 if not filtered.empty:
                     daily = filtered.groupby('day').agg({
                         'stock': 'sum',
@@ -298,20 +298,20 @@ if uploaded_file:
                     }).reset_index()
                     fig_det = go.Figure()
                     fig_det.add_trace(go.Scatter(x=daily['day'], y=daily['stock'],
-                                                 mode='lines+markers', name='РћСЃС‚Р°С‚РѕРє'))
+                                                 mode='lines+markers', name='Остаток'))
                     fig_det.add_trace(go.Scatter(x=daily['day'], y=daily['sales'],
-                                                 mode='lines+markers', name='РџСЂРѕРґР°Р¶Рё'))
+                                                 mode='lines+markers', name='Продажи'))
                     fig_det.add_trace(go.Bar(x=daily['day'], y=daily['deficit'],
-                                             name='Р”РµС„РёС†РёС‚', marker_color='red'))
-                    fig_det.update_layout(title=f"РћСЃС‚Р°С‚РєРё, РїСЂРѕРґР°Р¶Рё Рё РґРµС„РёС†РёС‚ вЂ“ {selected_product}{city_label}",
-                                          xaxis_title='Р”РµРЅСЊ РјРµСЃСЏС†Р°', yaxis_title='РљРѕР»РёС‡РµСЃС‚РІРѕ (С€С‚)',
+                                             name='Дефицит', marker_color='red'))
+                    fig_det.update_layout(title=f"Остатки, продажи и дефицит – {selected_product}{city_label}",
+                                          xaxis_title='День месяца', yaxis_title='Количество (шт)',
                                           template='simple_white')
                     st.plotly_chart(fig_det, width='stretch')
                     st.dataframe(daily)
                 else:
-                    st.warning("РќРµС‚ РґР°РЅРЅС‹С… РґР»СЏ РІС‹Р±СЂР°РЅРЅРѕРіРѕ С‚РѕРІР°СЂР° Рё РіРѕСЂРѕРґР°.")
+                    st.warning("Нет данных для выбранного товара и города.")
 
-            st.subheader("рџ“‹ Р”РµС‚Р°Р»СЊРЅР°СЏ С‚Р°Р±Р»РёС†Р° РґРµС„РёС†РёС‚Р° РїРѕ РґРЅСЏРј")
+            st.subheader("📋 Детальная таблица дефицита по дням")
             detail = df_deficit.groupby(['city', 'product', 'day']).agg({
                 'sales': 'sum',
                 'stock': 'sum',
@@ -325,18 +325,18 @@ if uploaded_file:
             def to_excel(df):
                 output = BytesIO()
                 with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                    df.to_excel(writer, sheet_name='Р РµР·СѓР»СЊС‚Р°С‚', index=False)
+                    df.to_excel(writer, sheet_name='Результат', index=False)
                 return output.getvalue()
 
             excel_data = to_excel(detail)
             st.download_button(
-                label="рџ“Ґ РЎРєР°С‡Р°С‚СЊ СЂРµР·СѓР»СЊС‚Р°С‚ (Excel)",
+                label="📥 Скачать результат (Excel)",
                 data=excel_data,
-                file_name="СЂРµР·СѓР»СЊС‚Р°С‚_Р°РЅР°Р»РёР·Р°.xlsx",
+                file_name="результат_анализа.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
 
     else:
-        st.error("РќРµ СѓРґР°Р»РѕСЃСЊ РѕР±СЂР°Р±РѕС‚Р°С‚СЊ С„Р°Р№Р». РџСЂРѕРІРµСЂСЊС‚Рµ С„РѕСЂРјР°С‚.")
+        st.error("Не удалось обработать файл. Проверьте формат.")
 else:
-    st.info("рџ‘€ Р—Р°РіСЂСѓР·РёС‚Рµ Excel-С„Р°Р№Р» РґР»СЏ РЅР°С‡Р°Р»Р° Р°РЅР°Р»РёР·Р°.")
+    st.info("👈 Загрузите Excel-файл для начала анализа.")
